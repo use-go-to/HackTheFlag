@@ -396,7 +396,7 @@
       salt: "toppo\u00b7lab\u00b7v1\u00b7",
       // sha256("toppo·lab·v1·0wnedlab{p4ssi0n_c0me_with_pract1ce}")
       // >>> à REGÉNÉRER toi-même (voir note ci-dessous), valeur d'exemple :
-      hash: "REMPLACE_MOI_PAR_LE_VRAI_HASH_SHA256"
+      hash: "f23bcc0366e36ca091415a0d1d96216e95881ac68b39c4879df8c92ebdba2883"
     }
   };
 })(window);
