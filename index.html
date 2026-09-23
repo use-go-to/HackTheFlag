@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pentest Lab — Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab.css?v=4">
+<style>
+  /* ---------- Styles propres au hub (grille de cours) ---------- */
+  .hub-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:16px;
+    margin-top:8px;
+  }
+  @media (min-width:640px){
+    .hub-grid{grid-template-columns:1fr 1fr;}
+  }
+  .course-card{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding:22px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    text-decoration:none;
+    color:var(--text);
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .course-card:hover{border-color:var(--accent); transform:translateY(-2px);}
+  .course-card h3{
+    font-family:var(--serif);
+    font-weight:600;
+    font-size:20px;
+    margin:0;
+    line-height:1.25;
+  }
+  .course-tagline{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--muted);
+    margin:-6px 0 0;
+  }
+  .course-badges{display:flex; flex-wrap:wrap; gap:8px;}
+  .course-note{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:auto;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+  }
+  .note-num{
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:22px;
+    line-height:1;
+  }
+  .note-sub{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .note-num.note-great{color:var(--ok);}
+  .note-num.note-ok{color:var(--term-gold);}
+  .note-num.note-low{color:var(--err);}
+  .note-num.note-none{color:var(--muted); font-size:15px; font-weight:500;}
+  .go-link{
+    margin-left:auto;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--muted);
+    align-self:center;
+    white-space:nowrap;
+  }
+  .course-card:hover .go-link{color:var(--accent);}
+  .hub-empty{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--muted);
+    padding:24px 0;
+  }
+  .hub-summary{
+    display:flex;
+    flex-wrap:wrap;
+    gap:24px;
+    margin-top:20px;
+  }
+  .note-legend{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:18px;
+    line-height:1.7;
+  }
+  .note-legend strong{color:var(--text); font-weight:500;}
+</style>
+</head>
+<body>
+
+  <div class="wrap">
+    <div class="hero">
+      <p class="kicker">pentest lab :: hub des cours</p>
+      <h1>Cours &amp; CTF</h1>
+      <p class="lead">Chaque cours est une machine à compromettre de bout en bout. La note affichée sur chaque carte reflète la qualité de ta résolution — moins tu utilises d'indices et de solutions, plus elle est haute. Le temps n'entre jamais en compte.</p>
+      <div class="hub-summary" id="hub-summary"></div>
+      <p class="note-legend">Note objective : <strong>20</strong> de base, <strong>−2</strong> par indice utilisé, <strong>−6</strong> par solution utilisée (plancher <strong>4/20</strong> dès que le flag est validé). Rien à voir avec la Difficulté ou la Puissance, qui sont fixes et propres au cours.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section id="courses">
+      <h2 class="section-title">Cours disponibles</h2>
+      <div class="hub-grid" id="hub-grid">
+        <p class="hub-empty">Chargement…</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="courses.js"></script>
+  <script>
+  (function(){
+    const PROGRESS_KEY = "pentestlab-progress";
+    const grid = document.getElementById("hub-grid");
+    const summaryEl = document.getElementById("hub-summary");
+
+    function readProgress(){
+      try{ return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {}; }catch(e){ return {}; }
+    }
+
+    function noteClass(score){
+      if(score >= 16) return "note-great";
+      if(score >= 10) return "note-ok";
+      return "note-low";
+    }
+
+    function scoreBadgeColor(kind, value, max){
+      // Réutilise la palette existante : vert si haut, orange/rouge si bas.
+      const ratio = value / max;
+      if(ratio >= 0.7) return {c:"var(--ok)", bg:"var(--ok-soft)"};
+      if(ratio >= 0.4) return {c:"var(--term-gold)", bg:"#e0c06022"};
+      return {c:"var(--err)", bg:"#ff5c7222"};
+    }
+
+    function courseCard(course, progress, exists){
+      const a = document.createElement(exists ? "a" : "div");
+      if(exists) a.href = course.file;
+      a.className = "course-card";
+
+      const diffColor = scoreBadgeColor("diff", course.difficulty, 10);
+      const powColor  = scoreBadgeColor("pow", course.power, 5);
+
+      let noteHtml;
+      if(progress && progress.solved){
+        const cls = noteClass(progress.score);
+        noteHtml = `
+          <div class="course-note">
+            <div>
+              <div class="note-num ${cls}">${progress.score}/20</div>
+              <div class="note-sub">${progress.hints} indice${progress.hints>1?"s":""} · ${progress.sols} solution${progress.sols>1?"s":""}</div>
+            </div>
+            <span class="go-link">${exists ? "revoir →" : ""}</span>
+          </div>`;
+      } else {
+        noteHtml = `
+          <div class="course-note">
+            <div>
+              <div class="note-num note-none">Non résolu</div>
+              <div class="note-sub">flag pas encore validé</div>
+            </div>
+            <span class="go-link">${exists ? "voir le cours →" : "bientôt"}</span>
+          </div>`;
+      }
+
+      a.innerHTML = `
+        <h3>${course.title}</h3>
+        ${course.tagline ? `<p class="course-tagline">${course.tagline}</p>` : ""}
+        <div class="course-badges">
+          <span class="score-badge" style="color:${diffColor.c}; border:1px solid ${diffColor.c}; background:${diffColor.bg};">Difficulté ${course.difficulty}/10 · ${course.difficultyLabel}</span>
+          <span class="score-badge" style="color:${powColor.c}; border:1px solid ${powColor.c}; background:${powColor.bg};">Puissance ${course.power}/5 · ${course.powerLabel}</span>
+        </div>
+        ${noteHtml}
+      `;
+      if(!exists) a.style.opacity = "0.45";
+      return a;
+    }
+
+    function checkExists(file){
+      return fetch(file, { method:"HEAD" }).then(r => r.ok).catch(() => false);
+    }
+
+    async function render(){
+      if(typeof COURSES === "undefined" || !COURSES.length){
+        grid.innerHTML = '<p class="hub-empty">Aucun cours configuré pour le moment.</p>';
+        return;
+      }
+      const progressAll = readProgress();
+      const results = await Promise.all(COURSES.map(c => checkExists(c.file)));
+
+      grid.innerHTML = "";
+      let shown = 0, solved = 0, totalScore = 0;
+
+      COURSES.forEach((course, i) => {
+        const exists = results[i];
+        if(!exists) return; // publication auto : un cours sans fichier ne s'affiche pas
+        shown++;
+        const progress = progressAll[course.id];
+        if(progress && progress.solved){ solved++; totalScore += progress.score; }
+        grid.appendChild(courseCard(course, progress, true));
+      });
+
+      if(shown === 0){
+        grid.innerHTML = '<p class="hub-empty">Aucun cours publié pour le moment.</p>';
+      }
+
+      const avg = solved ? Math.round((totalScore/solved) * 10) / 10 : null;
+      summaryEl.innerHTML = `
+        <div class="meta-item"><span class="label">Cours publiés</span><span class="value">${shown}</span></div>
+        <div class="meta-item"><span class="label">Résolus</span><span class="value">${solved}/${shown}</span></div>
+        <div class="meta-item"><span class="label">Note moyenne</span><span class="value">${avg !== null ? avg + "/20" : "—"}</span></div>
+      `;
+    }
+
+    render();
+  })();
+  </script>
+</body>
+</html>

