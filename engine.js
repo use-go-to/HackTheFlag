@@ -34,6 +34,7 @@
 
   let cmdHistory = [];
   let historyPos = 0;
+  let lastTabInfo = null; // { partial, candidates } — pour détecter un double-Tab façon bash
 
   function mode(){
     if(typeof steps === "undefined") return "free";
@@ -352,10 +353,113 @@
   function goToHistory(pos){
     historyPos = pos;
     input.value = cmdHistory[historyPos] !== undefined ? cmdHistory[historyPos] : "";
+    lastTabInfo = null;
     requestAnimationFrame(()=> input.setSelectionRange(input.value.length, input.value.length));
   }
 
+  // ---------- AUTOCOMPLÉTION (Tab) ----------
+  // Reproduit le comportement d'un vrai shell : Tab complète le mot en cours
+  // si une seule suite est possible ; s'il y a plusieurs candidats, il étend
+  // jusqu'au préfixe commun, puis un second Tab liste les possibilités.
+  // Le dictionnaire de complétion est dérivé du contexte courant (la/les
+  // réponse(s) attendue(s) de l'étape en mode guidé, ou des commandes
+  // connues en mode libre) — jamais des étapes futures.
+  function tokenizeCmd(cmd){
+    return (cmd.match(/'[^']*'|"[^"]*"|\S+/g) || []);
+  }
+  function buildWordList(){
+    const words = new Set();
+    const m = mode();
+    if(m === "type" && steps[stepIndex] && steps[stepIndex].accepted){
+      steps[stepIndex].accepted.forEach(cmd=> tokenizeCmd(cmd).forEach(w=> words.add(w)));
+    } else if(m === "free"){
+      const table = (typeof freeCommands !== "undefined" && freeCommands[freeContext]) || {};
+      Object.keys(table).forEach(cmd=> tokenizeCmd(cmd).forEach(w=> words.add(w)));
+      words.add("exit");
+    }
+    return Array.from(words);
+  }
+  function longestCommonPrefix(arr){
+    if(!arr.length) return "";
+    let prefix = arr[0];
+    for(let i=1;i<arr.length;i++){
+      const s = arr[i];
+      let j = 0;
+      while(j < prefix.length && j < s.length && prefix[j].toLowerCase() === s[j].toLowerCase()) j++;
+      prefix = prefix.slice(0, j);
+      if(!prefix) break;
+    }
+    return prefix;
+  }
+  function applyCompletion(start, end, replacement){
+    const val = input.value;
+    input.value = val.slice(0, start) + replacement + val.slice(end);
+    const newPos = start + replacement.length;
+    requestAnimationFrame(()=> input.setSelectionRange(newPos, newPos));
+  }
+  function flashNoMatch(){
+    if(!inputline) return;
+    inputline.classList.remove("tab-shake");
+    void inputline.offsetWidth;
+    inputline.classList.add("tab-shake");
+  }
+  function printCompletionList(candidates){
+    const line = document.createElement("div");
+    line.className = "sim-line appear";
+    line.innerHTML = `<span class="o sim-completions">${candidates.slice().sort().join("   ")}</span>`;
+    pushLine(line);
+    scrollToInput();
+  }
+  function handleTabComplete(){
+    const m = mode();
+    if(m !== "type" && m !== "free") return;
+    // Pas de complétion sur un champ masqué (mot de passe) : un vrai terminal
+    // ne complète jamais une saisie de mot de passe, et ça éviterait de le dévoiler.
+    if(m === "type" && steps[stepIndex] && steps[stepIndex].mask) return;
+    if(input.selectionStart !== input.selectionEnd) return;
+    const pos = input.selectionStart;
+    const before = input.value.slice(0, pos);
+    const wordMatch = before.match(/(\S+)$/);
+    if(!wordMatch){ lastTabInfo = null; return; }
+    const partial = wordMatch[0];
+    const start = pos - partial.length;
+    const lowerPartial = partial.toLowerCase();
+    const candidates = buildWordList().filter(w => w.toLowerCase().startsWith(lowerPartial));
+
+    if(candidates.length === 0){
+      lastTabInfo = null;
+      flashNoMatch();
+      return;
+    }
+    if(candidates.length === 1){
+      applyCompletion(start, pos, candidates[0]);
+      lastTabInfo = null;
+      return;
+    }
+    // plusieurs candidats : on étend au préfixe commun s'il est plus long que ce qui est tapé
+    const commonPrefix = longestCommonPrefix(candidates);
+    if(commonPrefix.length > partial.length){
+      applyCompletion(start, pos, commonPrefix);
+      lastTabInfo = { partial: commonPrefix, candidates };
+      return;
+    }
+    // déjà au préfixe commun et toujours ambigu : un second Tab liste les choix
+    if(lastTabInfo && lastTabInfo.partial === partial){
+      printCompletionList(candidates);
+      lastTabInfo = null;
+    } else {
+      lastTabInfo = { partial, candidates };
+      flashNoMatch();
+    }
+  }
+  on(input, "input", ()=>{ lastTabInfo = null; });
+
   on(input, "keydown", (e)=>{
+    if(e.key === "Tab"){
+      e.preventDefault();
+      handleTabComplete();
+      return;
+    }
     if(e.key === "ArrowUp"){
       if(cmdHistory.length === 0) return;
       e.preventDefault();
@@ -375,6 +479,7 @@
     cmdHistory.push(raw);
     historyPos = cmdHistory.length;
     input.value = "";
+    lastTabInfo = null;
 
     const m = mode();
     if(m === "type"){
@@ -427,6 +532,7 @@
     if(typeof initialFreeContext !== "undefined") freeContext = initialFreeContext;
     cmdHistory = [];
     historyPos = 0;
+    lastTabInfo = null;
     userHasInteracted = false;
     const children = Array.from(body.children);
     children.forEach(child=>{ if(child !== inputline) child.remove(); });
