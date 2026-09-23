@@ -1076,6 +1076,18 @@ table.cheat tr:last-child td{border-bottom:none;}
 }
 .sim-input::placeholder{color:#5a5a5a; opacity:1; font-style:italic; font-size:13px;}
 
+/* ---------- AUTOCOMPLÉTION (Tab) ---------- */
+.sim-completions{color:#8a8a8a; letter-spacing:.02em;}
+.sim-inputline.tab-shake{animation:tabShake .28s ease;}
+@keyframes tabShake{
+  0%,100%{transform:translateX(0);}
+  25%{transform:translateX(-4px);}
+  75%{transform:translateX(3px);}
+}
+@media (prefers-reduced-motion: reduce){
+  .sim-inputline.tab-shake{animation:none;}
+}
+
 /* ---------- BOUTONS ---------- */
 .sim-controls{
   display:flex;
