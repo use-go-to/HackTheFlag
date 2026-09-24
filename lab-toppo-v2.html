@@ -223,7 +223,7 @@
 
     <section id="practice">
       <h2 class="section-title">Terminal — bac à sable libre</h2>
-      <p class="section-intro">Aucune étape imposée : scanne, navigue, lis, fouille dans l'ordre que tu veux. Le panneau <strong>Objectifs</strong> (icône 🎯 en haut du terminal) suit ta progression en direct et calcule ta note au fur et à mesure — tu peux le laisser fermé et n'y jeter un œil qu'à la fin.</p>
+      <p class="section-intro">Aucune étape imposée : scanne, navigue, lis, fouille dans l'ordre que tu veux. Le bouton <strong>Objectifs</strong> en haut du terminal suit ta progression en direct et calcule ta note au fur et à mesure — tu peux le laisser fermé et n'y jeter un œil qu'à la fin. Tape <code>objectif</code> dans le terminal à tout moment pour savoir où tu en es, sans divulguer la commande à taper.</p>
 
       <div class="term-launch">
         <button class="term-launch-btn" id="term-open-btn" type="button">
@@ -251,7 +251,7 @@
           <span class="term-fs-context" id="sim-context">kali@kali</span>
         </div>
         <div class="term-fs-actions">
-          <button class="term-fs-note" id="note-badge" type="button" title="Voir le détail des objectifs">🎯 0/7 · 0/20</button>
+          <button class="term-fs-note" id="note-badge" type="button" title="Voir le détail des objectifs">0/7 · 0/20</button>
           <button class="term-fs-close" id="term-fsbtn" type="button" aria-label="Basculer en plein écran" title="Plein écran">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg>
           </button>
@@ -270,8 +270,6 @@
     </div>
 
     <div class="sim-body" id="sim-body">
-      <div class="sim-line appear"><span class="o dim">Session ouverte — root@kali. Rien n'a encore été scanné ni exploré.</span></div>
-      <div class="sim-line appear"><span class="o dim">Tape <span class="hl-gold">help</span> pour la liste des commandes, ou lance directement <span class="hl-gold">nmap -sV -sC 192.168.56.102</span>.</span></div>
       <div class="sim-line sim-inputline" id="sim-inputline">
         <span class="p" id="sim-prompt-label"></span>
         <input id="sim-input" class="sim-input" type="text" placeholder="tape ta commande puis Entrée… (↑ ↓ historique, Tab complète)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
@@ -280,9 +278,9 @@
 
     <div class="term-fs-footer">
       <div class="sim-controls">
-        <button class="sim-btn" id="obj-toggle-btn">🎯 Objectifs</button>
-        <button class="sim-btn" id="writeup-scroll-btn">📄 Write-up</button>
-        <button class="sim-btn" id="sim-reset-btn">↺ Recommencer</button>
+        <button class="sim-btn" id="obj-toggle-btn">Objectifs</button>
+        <button class="sim-btn" id="writeup-scroll-btn">Write-up</button>
+        <button class="sim-btn" id="sim-reset-btn">Recommencer</button>
         <form class="flag-form" id="flag-form" autocomplete="off" novalidate>
           <span class="flag-icon" aria-hidden="true">⚑</span>
           <input id="flag-input" class="flag-input" type="text" placeholder="0wnedlab{…}" aria-label="Flag à valider" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="120" name="flag-answer-not-stored">
