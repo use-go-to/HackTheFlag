@@ -353,7 +353,26 @@
   });
 
   // ------------------------------------------- autocomplétion (Tab) -------------------------------------------
-  const STATIC_CMDS = ["ls", "cd", "pwd", "cat", "head", "tail", "file", "find", "grep", "whoami", "id", "uname", "hostname", "history", "clear", "help", "nmap", "gobuster", "dirb", "curl", "wget", "ssh", "sudo", "exit"];
+  // Liste alignée sur les vraies méthodes cmd_xxx du moteur (voir sim-engine.js)
+  // pour qu'aucune commande existante — dont "objectif" — ne manque à l'appel.
+  const STATIC_CMDS = ["ls", "cd", "pwd", "cat", "head", "tail", "file", "find", "grep", "whoami", "id", "uname", "hostname", "history", "clear", "echo", "help", "objectif", "nmap", "gobuster", "dirb", "curl", "wget", "ssh", "su", "sudo", "exit"];
+  // Complète l'argument courant : fichiers/dossiers du répertoire courant,
+  // + adresses IP connues du cours (après "user@", "http://", "https://" ou
+  // en début d'argument) — jamais de nom d'utilisateur ni de chemin caché.
+  function argCandidates(partial) {
+    const out = engine.pathCandidates().filter((c) => c.toLowerCase().startsWith(partial.toLowerCase()));
+    const m = partial.match(/^(.*?(?:@|https?:\/\/))?([0-9.]*)$/i);
+    if (m && /^[0-9.]*$/.test(m[2])) {
+      const head = m[1] || "";
+      engine.networkCandidates().forEach((ip) => {
+        if (ip.startsWith(m[2])) {
+          const full = head + ip;
+          if (full.toLowerCase().startsWith(partial.toLowerCase())) out.push(full);
+        }
+      });
+    }
+    return Array.from(new Set(out));
+  }
   function handleTab() {
     if (engine._pendingSsh) return; // pas de complétion pendant la saisie de mot de passe
     const pos = input.selectionStart;
@@ -366,7 +385,7 @@
     if (isFirstWord) {
       candidates = STATIC_CMDS.filter((c) => c.startsWith(partial.toLowerCase()));
     } else {
-      candidates = engine.pathCandidates().filter((c) => c.toLowerCase().startsWith(partial.toLowerCase()));
+      candidates = argCandidates(partial);
     }
     if (!candidates.length) return;
     if (candidates.length === 1) {
