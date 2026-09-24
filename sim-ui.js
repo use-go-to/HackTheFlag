@@ -99,11 +99,27 @@
   }
   function printOutput(lines) {
     (lines || []).forEach((o) => {
+      if (o.box === "objectif") { printObjectifCard(o); return; }
       const el = document.createElement("div");
       el.className = "sim-line appear";
       el.innerHTML = `<span class="o ${clsFor(o.c)}">${esc(o.t) || "&nbsp;"}</span>`;
       pushLine(el);
     });
+  }
+  // Encart dédié pour la commande "objectif" : sort du flux de texte brut du
+  // terminal pour rester lisible même au milieu d'une sortie longue (nmap,
+  // gobuster…). boxState "done" bascule sur la couleur de validation.
+  function printObjectifCard(o) {
+    const el = document.createElement("div");
+    el.className = "sim-line appear";
+    const done = o.boxState === "done";
+    el.innerHTML = `
+      <div class="obj-inline-card${done ? " done" : ""}">
+        <div class="obj-inline-label">${done ? "Objectifs" : "Objectif en cours"}</div>
+        <div class="obj-inline-title">${esc(o.t)}</div>
+        ${o.boxMeta ? `<div class="obj-inline-sub">${esc(o.boxMeta)}</div>` : ""}
+      </div>`;
+    pushLine(el);
   }
   function clearBody() {
     Array.from(body.querySelectorAll(".sim-line:not(#sim-inputline)")).forEach((n) => n.remove());
