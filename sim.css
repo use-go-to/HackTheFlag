@@ -103,6 +103,42 @@
   font-family:var(--mono); font-size:10.5px; color:var(--muted); line-height:1.6; padding:8px 18px 20px;
 }
 
+/* ---------- encart "objectif" affiché dans le fil du terminal ---------- */
+.obj-inline-card{
+  margin:4px 0 10px;
+  padding:11px 14px;
+  border:1px solid rgba(224,192,96,.4);
+  border-left:3px solid var(--term-gold);
+  border-radius:6px;
+  background:rgba(224,192,96,.07);
+  font-family:var(--term-mono);
+  max-width:640px;
+}
+.obj-inline-label{
+  font-size:10.5px;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  font-weight:600;
+  color:var(--term-gold);
+  margin-bottom:5px;
+}
+.obj-inline-title{
+  color:var(--term-text);
+  font-size:13.5px;
+  line-height:1.5;
+}
+.obj-inline-sub{
+  margin-top:6px;
+  color:var(--term-dim);
+  font-size:11.5px;
+}
+.obj-inline-card.done{
+  border-color:rgba(95,217,164,.4);
+  border-left-color:var(--ok);
+  background:rgba(95,217,164,.07);
+}
+.obj-inline-card.done .obj-inline-label{color:var(--ok);}
+
 /* ---------- toast "objectif validé" ---------- */
 .obj-toast{
   position:fixed; left:50%; bottom:24px; transform:translate(-50%, 12px);
