@@ -381,6 +381,13 @@
     args.forEach(function (a) {
       const r = self._readFile(a);
       if (r.err) { out.push({ t: r.err, c: "err" }); return; }
+      // Un vrai `cat` sur un binaire (image, clé...) crache des octets
+      // illisibles — on simule ça proprement plutôt que de dumper une
+      // "fausse" chaîne de contenu comme si c'était du texte.
+      if (r.node.binary) {
+        out.push({ t: a + ": fichier binaire (" + (r.node.filetype || "data") + ") — utilise 'file " + a + "' pour l'identifier.", c: "dim" });
+        return;
+      }
       const isFlag = !!r.node.isFlag;
       String(r.node.content).split("\n").forEach(function (l) { out.push({ t: l, c: isFlag ? "flag" : "o" }); });
     });
@@ -391,6 +398,7 @@
     if (args[0] === "-n") { n = parseInt(args[1], 10) || 10; target = args[2]; }
     const r = this._readFile(target);
     if (r.err) return [{ t: r.err, c: "err" }];
+    if (r.node.binary) return [{ t: target + ": fichier binaire (" + (r.node.filetype || "data") + ") — utilise 'file " + target + "' pour l'identifier.", c: "dim" }];
     return String(r.node.content).split("\n").slice(0, n).map(function (l) { return { t: l, c: "o" }; });
   };
   PentestSimEngine.prototype.cmd_tail = function (args) {
@@ -398,6 +406,7 @@
     if (args[0] === "-n") { n = parseInt(args[1], 10) || 10; target = args[2]; }
     const r = this._readFile(target);
     if (r.err) return [{ t: r.err, c: "err" }];
+    if (r.node.binary) return [{ t: target + ": fichier binaire (" + (r.node.filetype || "data") + ") — utilise 'file " + target + "' pour l'identifier.", c: "dim" }];
     return String(r.node.content).split("\n").slice(-n).map(function (l) { return { t: l, c: "o" }; });
   };
   PentestSimEngine.prototype.cmd_file = function (args) {
@@ -552,6 +561,14 @@
     });
     out.push({ t: "===============================================================", c: "dim" });
     out.push({ t: "Finished", c: "dim" });
+    // Comme nmap et curl : les dossiers marqués route.notable dans les
+    // données du cours deviennent une pastille copiable — gobuster ne se
+    // contente plus d'afficher du texte qui disparaît dans le scroll.
+    const base = url.replace(/\/$/, "");
+    this.addFindings(
+      routes.filter(function (r) { return targetHost.web.routes[r].notable; })
+            .map(function (r) { return { label: "dossier", value: base + r }; })
+    );
     return out;
   };
 
