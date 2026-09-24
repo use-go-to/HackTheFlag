@@ -183,21 +183,23 @@
     `;
     return row;
   }
-  function renderObjectives() {
-    objList.innerHTML = "";
+  function renderCategorized(container, list) {
+    container.innerHTML = "";
     let lastCat = null;
-    COURSE.objectives.forEach((obj) => {
+    (list || []).forEach((obj) => {
       if (obj.category !== lastCat) {
         lastCat = obj.category;
         const h = document.createElement("div");
         h.className = "obj-cat-label";
         h.textContent = lastCat;
-        objList.appendChild(h);
+        container.appendChild(h);
       }
-      objList.appendChild(objRow(obj));
+      container.appendChild(objRow(obj));
     });
-    objBonusList.innerHTML = "";
-    (COURSE.bonusObjectives || []).forEach((obj) => objBonusList.appendChild(objRow(obj, true)));
+  }
+  function renderObjectives() {
+    renderCategorized(objList, COURSE.objectives);
+    renderCategorized(objBonusList, COURSE.bonusObjectives || []);
 
     const sc = engine.computeScore();
     const doneCount = sc.detail.filter((d) => d.done).length;
