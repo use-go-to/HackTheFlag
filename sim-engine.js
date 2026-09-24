@@ -316,17 +316,23 @@
   // le titre du prochain objectif non validé, pour situer l'apprenant sans le
   // spoiler (le détail des indices reste dans le tiroir Objectifs, à la
   // demande explicite de l'apprenant via "indice"/"solution").
+  // Le champ "box" marque ces lignes pour un rendu spécial (encart) côté UI
+  // (sim-ui.js) plutôt que du texte de sortie brut, difficile à repérer dans
+  // le défilement du terminal.
   PentestSimEngine.prototype.cmd_objectif = function () {
     const core = this.course.objectives || [];
     const pending = core.filter((o) => !this.objectiveStatus(o));
     if (!pending.length) {
-      return [{ t: "tous les objectifs principaux sont validés — il ne reste que d'éventuels bonus.", c: "ok" }];
+      return [{ t: "Tous les objectifs principaux sont validés — il ne reste que d'éventuels bonus.", c: "ok", box: "objectif", boxState: "done" }];
     }
     const next = pending[0];
-    return [
-      { t: "étape en cours [" + next.category + "] " + next.title + " (" + next.points + " pts)", c: "o" },
-      { t: pending.length + " objectif" + (pending.length > 1 ? "s" : "") + " restant" + (pending.length > 1 ? "s" : "") + " sur " + core.length + " — panneau Objectifs pour un indice si besoin.", c: "dim" }
-    ];
+    return [{
+      t: next.category + " — " + next.title,
+      c: "o",
+      box: "objectif",
+      boxState: "pending",
+      boxMeta: next.points + " pt" + (next.points > 1 ? "s" : "") + " · " + pending.length + " objectif" + (pending.length > 1 ? "s" : "") + " restant" + (pending.length > 1 ? "s" : "") + " sur " + core.length
+    }];
   };
   PentestSimEngine.prototype.cmd_etape = function (args, raw) { return this.cmd_objectif(args, raw); };
   PentestSimEngine.prototype.cmd_objectifs = function (args, raw) { return this.cmd_objectif(args, raw); };
