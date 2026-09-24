@@ -7,6 +7,7 @@
   function $(id) { return document.getElementById(id); }
   function on(el, ev, fn, opts) { if (el && el.addEventListener) el.addEventListener(ev, fn, opts); }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
 
   const courseId = window.PENTESTLAB_COURSE_ID || "toppo";
   const COURSE = (window.PENTESTLAB_COURSES || {})[courseId];
@@ -174,7 +175,11 @@
         <button type="button" class="obj-mini-btn" data-sol="${obj.id}">🔍 solution</button>
       </div>
       ${reveal === "hint" ? `<div class="obj-reveal">${esc(obj.hint)}</div>` : ""}
-      ${reveal === "solution" ? `<div class="obj-reveal obj-reveal-sol"><code>${esc(obj.solution)}</code></div>` : ""}
+      ${reveal === "solution" ? `<div class="obj-reveal obj-reveal-sol">
+        <code>${esc(obj.solution)}</code>
+        <button type="button" class="obj-mini-btn obj-copy-btn" data-copy="${escAttr(obj.solution)}" title="Copier la commande">⧉ copier</button>
+        ${obj.solutionNote ? `<div class="obj-reveal-note">${esc(obj.solutionNote)}</div>` : ""}
+      </div>` : ""}
     `;
     return row;
   }
@@ -204,6 +209,18 @@
   on(objList, "click", handleObjClick);
   on(objBonusList, "click", handleObjClick);
   function handleObjClick(e) {
+    const copyBtn = e.target.closest(".obj-copy-btn");
+    if (copyBtn) {
+      // Copie strictement la commande (data-copy = obj.solution seul,
+      // jamais la note entre parenthèses type "(mot de passe : ...)")
+      const val = copyBtn.getAttribute("data-copy") || "";
+      navigator.clipboard && navigator.clipboard.writeText(val).catch(() => {});
+      const original = copyBtn.textContent;
+      copyBtn.textContent = "✓ copié";
+      copyBtn.disabled = true;
+      setTimeout(() => { copyBtn.textContent = original; copyBtn.disabled = false; }, 900);
+      return;
+    }
     const hintBtn = e.target.closest("[data-hint]");
     const solBtn = e.target.closest("[data-sol]");
     if (hintBtn) {
