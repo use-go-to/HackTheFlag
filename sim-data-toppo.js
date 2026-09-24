@@ -92,7 +92,10 @@
     uname: "Linux Toppo 3.16.0-4-586 #1 Debian 3.16.51-3 (2017-12-13) i686 GNU/Linux",
     noSudo: true,
     ports: [
-      { port: 22, service: "ssh", version: "OpenSSH 6.7p1 Debian 5+deb8u4" },
+      // finding:true = seul ce port apparaît en pastille en tête de terminal :
+      // c'est le port réellement exploité (accès SSH final). 80 et 111 restent
+      // visibles dans la sortie de nmap mais n'encombrent pas la barre du haut.
+      { port: 22, service: "ssh", version: "OpenSSH 6.7p1 Debian 5+deb8u4", finding: true },
       { port: 80, service: "http", version: "Apache httpd 2.4.10 ((Debian))" },
       { port: 111, service: "rpcbind", version: "2-4 (RPC #100000)" }
     ],
@@ -109,7 +112,14 @@
         "/vendor/": { status: 301, brute: true, redirect: "/vendor/" },
         "/LICENSE": { status: 200, brute: true, content: "Ce thème est fourni à titre pédagogique dans le cadre du Pentest Lab.\nAucune licence commerciale associée." },
         "/server-status": { status: 403, brute: true },
-        "/admin/notes.txt": { status: 200, content: "Note to myself :\nI need to change my password :/\n12345ted123 is too outdated but the technology isn't my thing\ni prefer go fishing or watching soccer ." },
+        "/admin/notes.txt": {
+          status: 200,
+          content: "Note to myself :\nI need to change my password :/\n12345ted123 is too outdated but the technology isn't my thing\ni prefer go fishing or watching soccer .",
+          // Dès que ce fichier est lu (curl/wget), le mot de passe devient une
+          // pastille copiable en un clic — utile juste après pour le coller
+          // directement dans le prompt de mot de passe SSH.
+          finding: { label: "mdp", value: "12345ted123" }
+        },
         "/mail/thoughts.txt": { status: 200, content: "todo: penser a changer le mdp du ftp aussi un jour\net arreter de reutiliser 12345ted123 partout..." }
       }
     },
@@ -178,7 +188,8 @@
       id: "access", points: 20, category: "Accès initial",
       title: "Ouvrir une session SSH sur la cible",
       hint: "Le fichier de notes donne un mot de passe. Il reste à deviner à qui il appartient (indice : il aime la pêche).",
-      solution: "ssh ted@192.168.56.102  (mot de passe : 12345ted123)",
+      solution: "ssh ted@192.168.56.102",
+      solutionNote: "mot de passe : 12345ted123",
       check: (s) => s.events.has("ssh:toppo:ted")
     },
     {
@@ -223,7 +234,8 @@
       id: "bonus-denied", points: 1, category: "Bonus",
       title: "Se heurter à un Permission denied avant l'élévation",
       hint: "Essaie de lire le flag avant d'être root : le système va te le refuser, et c'est normal.",
-      solution: "cat /root/flag.txt  (avant privesc)",
+      solution: "cat /root/flag.txt",
+      solutionNote: "à tenter avant l'élévation de privilèges",
       check: (s, eng) => eng.hasEventPrefix("denied:toppo:/root")
     }
   ];
