@@ -1,0 +1,113 @@
+/* sim.css — additions pour le moteur v2 (sim-engine.js / sim-ui.js).
+   N'écrase aucune règle de lab.css : uniquement des classes nouvelles,
+   chargé après lab.css sur les pages qui utilisent le bac à sable libre. */
+
+.v2-pill{
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:100px;
+  border:1px solid var(--term-gold);
+  color:var(--term-gold);
+  font-size:11px;
+  font-weight:600;
+  vertical-align:middle;
+}
+
+.o.dim{color:var(--term-dim);}
+
+/* ---------- barre d'actions dans l'entête plein écran ---------- */
+.term-fs-actions{display:flex; align-items:center; gap:8px;}
+.term-fs-note{
+  font-family:var(--term-mono);
+  font-size:11.5px;
+  color:var(--term-gold);
+  background:rgba(224,192,96,.1);
+  border:1px solid rgba(224,192,96,.35);
+  border-radius:100px;
+  padding:5px 10px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.term-fs-note:hover{background:rgba(224,192,96,.18);}
+
+/* ---------- tiroir Objectifs ---------- */
+.obj-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.5);
+  opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:10001;
+}
+.obj-overlay.show{opacity:1; pointer-events:auto;}
+.obj-panel{
+  position:fixed; top:0; right:0; bottom:0;
+  width:min(380px, 92vw);
+  background:var(--panel);
+  border-left:1px solid var(--border);
+  z-index:10002;
+  display:flex; flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .22s ease;
+  font-family:var(--sans);
+  overflow-y:auto;
+}
+.obj-panel.open{transform:translateX(0);}
+.obj-panel-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 18px; border-bottom:1px solid var(--border);
+  font-family:var(--mono); font-size:13px; font-weight:600; color:var(--text);
+  position:sticky; top:0; background:var(--panel);
+}
+.obj-panel-head button{
+  background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; line-height:1;
+}
+.obj-panel-head button:hover{color:var(--text);}
+.obj-score-block{padding:18px; border-bottom:1px solid var(--border); text-align:center;}
+.obj-score-num{font-family:var(--serif); font-size:38px; font-weight:600; color:var(--term-gold);}
+.obj-score-sub{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:4px;}
+.obj-list{padding:10px 14px;}
+.obj-cat-label{
+  font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--muted); margin:14px 4px 6px; font-weight:600;
+}
+.obj-cat-label:first-child{margin-top:2px;}
+.obj-item{
+  border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:var(--panel-alt);
+}
+.obj-item.done{border-color:var(--ok); background:rgba(95,217,164,.06);}
+.obj-item-top{display:flex; align-items:center; gap:8px;}
+.obj-check{
+  width:18px; height:18px; border-radius:50%; border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); flex-shrink:0;
+}
+.obj-item.done .obj-check{border-color:var(--ok); color:var(--ok);}
+.obj-title{font-size:13px; color:var(--text); flex:1; line-height:1.35;}
+.obj-pts{font-family:var(--mono); font-size:11px; color:var(--term-gold); white-space:nowrap;}
+.obj-item-actions{display:flex; gap:8px; margin-top:8px;}
+.obj-mini-btn{
+  font-family:var(--mono); font-size:11px; background:none; border:1px solid var(--border); color:var(--muted);
+  border-radius:6px; padding:4px 8px; cursor:pointer;
+}
+.obj-mini-btn:hover{border-color:var(--accent); color:var(--accent);}
+.obj-reveal{
+  margin-top:8px; padding:8px 10px; background:var(--bg); border:1px dashed var(--border); border-radius:6px;
+  font-size:12px; color:var(--muted); line-height:1.5;
+}
+.obj-reveal-sol code{color:var(--term-gold); font-family:var(--term-mono);}
+.obj-bonus-head{
+  font-family:var(--mono); font-size:11px; color:var(--muted); padding:8px 18px 0; text-transform:uppercase; letter-spacing:.05em;
+}
+.obj-list-bonus .obj-item{opacity:.9;}
+.obj-formula{
+  font-family:var(--mono); font-size:10.5px; color:var(--muted); line-height:1.6; padding:8px 18px 20px;
+}
+
+/* ---------- toast "objectif validé" ---------- */
+.obj-toast{
+  position:fixed; left:50%; bottom:24px; transform:translate(-50%, 12px);
+  background:var(--panel); border:1px solid var(--ok); color:var(--ok);
+  font-family:var(--mono); font-size:12.5px; padding:9px 16px; border-radius:100px;
+  opacity:0; transition:opacity .25s ease, transform .25s ease; z-index:10010; white-space:nowrap;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.obj-toast.show{opacity:1; transform:translate(-50%, 0);}
+@media (max-width:639px){
+  .obj-toast{font-size:11.5px; padding:8px 12px; max-width:88vw; white-space:normal; text-align:center;}
+}

