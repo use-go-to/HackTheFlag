@@ -306,9 +306,30 @@
     return [
       { t: "commandes disponibles : ls cd pwd cat head tail file find grep whoami id uname hostname", c: "o" },
       { t: "réseau : nmap gobuster curl wget ssh sudo su", c: "o" },
+      { t: "objectif : affiche l'énoncé de l'étape en cours, sans la commande à taper", c: "o" },
       { t: "raccourcis : ↑/↓ historique · Tab complétion · clear · exit", c: "o" }
     ];
   };
+
+  // ------------------------------ objectif (énoncé de l'étape en cours) ------------------------------
+  // Ne renvoie jamais de commande ni de solution : uniquement la catégorie et
+  // le titre du prochain objectif non validé, pour situer l'apprenant sans le
+  // spoiler (le détail des indices reste dans le tiroir Objectifs, à la
+  // demande explicite de l'apprenant via "indice"/"solution").
+  PentestSimEngine.prototype.cmd_objectif = function () {
+    const core = this.course.objectives || [];
+    const pending = core.filter((o) => !this.objectiveStatus(o));
+    if (!pending.length) {
+      return [{ t: "tous les objectifs principaux sont validés — il ne reste que d'éventuels bonus.", c: "ok" }];
+    }
+    const next = pending[0];
+    return [
+      { t: "étape en cours [" + next.category + "] " + next.title + " (" + next.points + " pts)", c: "o" },
+      { t: pending.length + " objectif" + (pending.length > 1 ? "s" : "") + " restant" + (pending.length > 1 ? "s" : "") + " sur " + core.length + " — panneau Objectifs pour un indice si besoin.", c: "dim" }
+    ];
+  };
+  PentestSimEngine.prototype.cmd_etape = function (args, raw) { return this.cmd_objectif(args, raw); };
+  PentestSimEngine.prototype.cmd_objectifs = function (args, raw) { return this.cmd_objectif(args, raw); };
 
   // ------------------------------------ ls ------------------------------------
   PentestSimEngine.prototype.cmd_ls = function (args) {
