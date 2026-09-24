@@ -33,7 +33,24 @@
             { owner: "www-data", perms: "rwr-", mtime: "Apr 15  2018" }
           )
         }, { owner: "www-data", perms: "rwr-", mtime: "Apr 15  2018" })
-      }, { owner: "root", perms: "rwr-" })
+      }, { owner: "root", perms: "rwr-" }),
+      // Deux dossiers systeme classiques, invisibles tant qu'on n'est pas root
+      // (perms "rw--" = seul le owner "root" peut entrer) — de quoi fouiner
+      // un peu une fois l'accès total obtenu, sans que ça serve à un nouvel
+      // objectif coeur : c'est de l'exploration pure, pour le plaisir de
+      // comprendre une vraie machine Linux.
+      backups: dir({
+        "passwd.bak": file(
+          "root:x:0:0:root:/root:/bin/bash\nted:x:1000:1000:ted,,,:/home/ted:/bin/bash\ncindy:x:1001:1001:cindy,,,:/home/cindy:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin",
+          { owner: "root", perms: "rw--", mtime: "Jan  3  2018" }
+        )
+      }, { owner: "root", perms: "rw--", mtime: "Jan  3  2018" }),
+      mail: dir({
+        root: file(
+          "From cron@Toppo  Sun Apr 15 09:02:11 2018\nSubject: Rappel hebdomadaire\n\nPenser a verifier la rotation des logs dans /var/log avant la fin du mois.\n-- cron",
+          { owner: "root", perms: "rw--", mtime: "Apr 15  2018" }
+        )
+      }, { owner: "root", perms: "rw--", mtime: "Apr 15  2018" })
     }),
     home: dir({
       ted: dir({
@@ -59,7 +76,37 @@
         "Congratulations ! there is your flag : 0wnedlab{p4ssi0n_c0me_with_pract1ce}",
         { owner: "root", perms: "rw--", mtime: "Apr 15  2018", isFlag: true }
       ),
-      ".bash_history": file("id\nwhoami\nls -la /root\ncat flag.txt", { owner: "root", perms: "rw--", mtime: "Apr 15  2018" })
+      ".bash_history": file("id\nwhoami\nls -la /root\ncat flag.txt", { owner: "root", perms: "rw--", mtime: "Apr 15  2018" }),
+      Documents: dir({
+        "infra-notes.txt": file(
+          "Parc :\n- Toppo (ce serveur) : blog vitrine, a migrer un jour vers du HTTPS\n- backup-srv (192.168.56.50) : sauvegardes hebdo, cle SSH dediee dans .ssh/\nA faire : desactiver l'acces SSH par mot de passe, ne garder que les cles.",
+          { owner: "root", perms: "rw--", mtime: "Mar  2  2018" }
+        ),
+        "todo-admin.txt": file(
+          "- changer le mdp de ted (il reutilise 12345ted123 PARTOUT, meme sur le ftp)\n- retirer python2.7 du SUID, ca sert a rien qu'il le soit\n- mettre a jour Apache",
+          { owner: "root", perms: "rw--", mtime: "Feb 20  2018" }
+        )
+      }, { owner: "root", perms: "rw--", mtime: "Mar  2  2018" }),
+      Pictures: dir({
+        "vacances_2017.jpg": file("[JPEG binary data]", {
+          owner: "root", perms: "rw--", mtime: "Aug 20  2017",
+          binary: true, filetype: "JPEG image data, JFIF standard 1.01, 1920x1080", size: 284213
+        }),
+        "capture_admin.png": file("[PNG binary data]", {
+          owner: "root", perms: "rw--", mtime: "Jan  9  2018",
+          binary: true, filetype: "PNG image data, 1024 x 768, 8-bit/color RGBA", size: 96420
+        })
+      }, { owner: "root", perms: "rw--", mtime: "Aug 20  2017" }),
+      ".ssh": dir({
+        "authorized_keys": file(
+          "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7fJ4z... backup-srv-deploy",
+          { owner: "root", perms: "rw--", mtime: "Feb 11  2018" }
+        ),
+        "id_rsa": file(
+          "-----BEGIN RSA PRIVATE KEY-----\n[cle factice generee pour l'exercice — inutilisable telle quelle]\nMIIEowIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF0/dOkV5A0oWJj0G3/e...\n-----END RSA PRIVATE KEY-----",
+          { owner: "root", perms: "rw--", mtime: "Feb 11  2018", finding: { label: "clé privée", value: "/root/.ssh/id_rsa" } }
+        )
+      }, { owner: "root", perms: "rw--", mtime: "Feb 11  2018" })
     }, { owner: "root", perms: "rw--", mtime: "Apr 15  2018" }),
     usr: dir({
       bin: dir({
@@ -73,6 +120,12 @@
       "passwd": file(
         "root:x:0:0:root:/root:/bin/bash\nted:x:1000:1000:ted,,,:/home/ted:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin",
         { owner: "root", perms: "rwr-" }
+      ),
+      "shadow": file(
+        "root:$6$roundsF5k$aZ8pQ1e3W0j7RxT4uKvY9mLnH2sVbNcDeGfQwErTyUi0oPaSdFgHjKl1234567:17636:0:99999:7:::\n" +
+        "ted:$6$roundsA2n$Bc9dEfGh1IjKl2MnOpQrSt3UvWxYz4A5b6C7d8E9f0GhIjKlMnOpQrStUvWxYz:17640:0:99999:7:::\n" +
+        "www-data:*:17600:0:99999:7:::",
+        { owner: "root", perms: "rw--", mtime: "Apr 15  2018", finding: { label: "hash root", value: "$6$roundsF5k$aZ8pQ1e3W0j7RxT4uKvY9mLnH2sVbNcDeGfQwErTyUi0oPaSdFgHjKl1234567" } }
       )
     }),
     sbin: dir({ "mount.nfs": file("[binaire ELF]", { owner: "root", perms: "r-r-", suid: true }) })
@@ -104,8 +157,8 @@
       routes: {
         "/": { status: 200, content: "<html><body><h1>Clean Blog - Start Bootstrap Theme</h1></body></html>" },
         "/img/": { status: 301, brute: true, redirect: "/img/" },
-        "/mail/": { status: 301, brute: true, redirect: "/mail/", content: "Index of /mail\n\n[DIR]  ../\n[TXT]  thoughts.txt" },
-        "/admin/": { status: 301, brute: true, redirect: "/admin/", content: "Index of /admin\n\n[DIR]  ../\n[TXT]  notes.txt" },
+        "/mail/": { status: 301, brute: true, redirect: "/mail/", content: "Index of /mail\n\n[DIR]  ../\n[TXT]  thoughts.txt", notable: true },
+        "/admin/": { status: 301, brute: true, redirect: "/admin/", content: "Index of /admin\n\n[DIR]  ../\n[TXT]  notes.txt", notable: true },
         "/css/": { status: 301, brute: true, redirect: "/css/" },
         "/manual/": { status: 301, brute: true, redirect: "/manual/" },
         "/js/": { status: 301, brute: true, redirect: "/js/" },
@@ -237,6 +290,46 @@
       solution: "cat /root/flag.txt",
       solutionNote: "à tenter avant l'élévation de privilèges",
       check: (s, eng) => eng.hasEventPrefix("denied:toppo:/root")
+    },
+    // ---- Espionnage post-root : maintenant que tu es root, plus aucune
+    // permission ne t'arrête — ces objectifs guident l'exploration pour
+    // ceux qui ne savent pas par où fouiller une machine compromise.
+    // Chacun fait grandir la fiche cible en tête de terminal (nouvelle
+    // pastille copiable dès que l'info est lue).
+    {
+      id: "bonus-shadow", points: 2, category: "Espionnage post-root",
+      title: "Lire /etc/shadow maintenant que tu es root",
+      hint: "Ce fichier contient les hachages de mots de passe de tous les comptes — illisible sans les droits root.",
+      solution: "cat /etc/shadow",
+      check: (s) => s.events.has("read:toppo:/etc/shadow")
+    },
+    {
+      id: "bonus-sshkeys", points: 2, category: "Espionnage post-root",
+      title: "Inspecter les clés SSH de root",
+      hint: "Un dossier caché .ssh dans /root contient les clés utilisées pour se connecter ailleurs.",
+      solution: "cat /root/.ssh/id_rsa",
+      check: (s) => s.events.has("read:toppo:/root/.ssh/id_rsa")
+    },
+    {
+      id: "bonus-docs", points: 1, category: "Espionnage post-root",
+      title: "Fouiller les documents personnels de root",
+      hint: "Un dossier Documents traîne dans le home de root — vas-y jeter un œil.",
+      solution: "cat /root/Documents/infra-notes.txt",
+      check: (s, eng) => eng.hasEventPrefix("read:toppo:/root/Documents")
+    },
+    {
+      id: "bonus-pictures", points: 1, category: "Espionnage post-root",
+      title: "Regarder ce qui traîne dans Pictures",
+      hint: "Les fichiers ne sont pas tous du texte : 'file' te dit ce que c'est vraiment sans avoir besoin de l'ouvrir.",
+      solution: "file /root/Pictures/vacances_2017.jpg",
+      check: (s, eng) => eng.hasEventPrefix("ls:toppo:/root/Pictures") || eng.hasEventPrefix("read:toppo:/root/Pictures")
+    },
+    {
+      id: "bonus-backups", points: 1, category: "Espionnage post-root",
+      title: "Trouver une ancienne sauvegarde du fichier passwd",
+      hint: "Un dossier /var/backups garde parfois des copies oubliées de fichiers systeme.",
+      solution: "cat /var/backups/passwd.bak",
+      check: (s) => s.events.has("read:toppo:/var/backups/passwd.bak")
     }
   ];
 
