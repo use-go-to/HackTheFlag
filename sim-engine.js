@@ -719,6 +719,14 @@
     if (!node || node.type !== "d") return [];
     return Object.keys(node.children);
   };
+  // Complétion : adresses IP des machines déclarées par le cours (déjà
+  // visibles dans l'en-tête "Cible / Attaquant" du labo — ce n'est donc
+  // jamais une information supplémentaire donnée par la complétion).
+  // N'inclut ni identifiant, ni chemin, ni URL découverte : uniquement l'IP.
+  PentestSimEngine.prototype.networkCandidates = function () {
+    const ips = Object.values(this.hosts).map(function (h) { return h.ip; }).filter(Boolean);
+    return Array.from(new Set(ips));
+  };
   // Un cours déclare host.privesc = { match: (raw)=>bool, to:'root' }
   // Le moteur teste chaque commande brute contre tous les déclencheurs de
   // privesc connus AVANT de chercher une méthode cmd_xxx — si ça matche, on
