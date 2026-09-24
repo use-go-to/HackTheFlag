@@ -116,7 +116,7 @@
     pushLine(el);
     const el2 = document.createElement("div");
     el2.className = "sim-line appear";
-    el2.innerHTML = `<span class="o dim">Tape <span class="hl-gold">help</span> pour la liste des commandes.</span>`;
+    el2.innerHTML = `<span class="o dim">Tape <span class="hl-gold">help</span> pour la liste des commandes, ou <span class="hl-gold">objectif</span> pour savoir où tu en es.</span>`;
     pushLine(el2);
   }
 
@@ -171,13 +171,13 @@
         <span class="obj-pts">${obj.points} pt${obj.points > 1 ? "s" : ""}</span>
       </div>
       <div class="obj-item-actions">
-        <button type="button" class="obj-mini-btn" data-hint="${obj.id}">💡 indice</button>
-        <button type="button" class="obj-mini-btn" data-sol="${obj.id}">🔍 solution</button>
+        <button type="button" class="obj-mini-btn" data-hint="${obj.id}">Indice</button>
+        <button type="button" class="obj-mini-btn" data-sol="${obj.id}">Solution</button>
       </div>
       ${reveal === "hint" ? `<div class="obj-reveal">${esc(obj.hint)}</div>` : ""}
       ${reveal === "solution" ? `<div class="obj-reveal obj-reveal-sol">
         <code>${esc(obj.solution)}</code>
-        <button type="button" class="obj-mini-btn obj-copy-btn" data-copy="${escAttr(obj.solution)}" title="Copier la commande">⧉ copier</button>
+        <button type="button" class="obj-mini-btn obj-copy-btn" data-copy="${escAttr(obj.solution)}" title="Copier la commande">Copier</button>
         ${obj.solutionNote ? `<div class="obj-reveal-note">${esc(obj.solutionNote)}</div>` : ""}
       </div>` : ""}
     `;
@@ -205,7 +205,7 @@
     const doneCount = sc.detail.filter((d) => d.done).length;
     objScoreNum.textContent = sc.note + "/20";
     objScoreSub.textContent = doneCount + " objectif" + (doneCount > 1 ? "s" : "") + " sur " + COURSE.objectives.length + " validé" + (doneCount > 1 ? "s" : "") + (sc.bonusPts ? " · +" + sc.bonusPts + " bonus" : "");
-    noteBadge.textContent = "🎯 " + doneCount + "/" + COURSE.objectives.length + " · " + sc.note + "/20";
+    noteBadge.textContent = doneCount + "/" + COURSE.objectives.length + " · " + sc.note + "/20";
     return sc;
   }
   on(objList, "click", handleObjClick);
@@ -218,7 +218,7 @@
       const val = copyBtn.getAttribute("data-copy") || "";
       navigator.clipboard && navigator.clipboard.writeText(val).catch(() => {});
       const original = copyBtn.textContent;
-      copyBtn.textContent = "✓ copié";
+      copyBtn.textContent = "Copié";
       copyBtn.disabled = true;
       setTimeout(() => { copyBtn.textContent = original; copyBtn.disabled = false; }, 900);
       return;
@@ -252,7 +252,7 @@
       const done = engine.objectiveStatus(obj);
       if (done && !knownDone.has(obj.id)) {
         knownDone.add(obj.id);
-        showToast("✓ objectif validé — " + obj.title + " (+" + obj.points + " pts)");
+        showToast("Objectif validé — " + obj.title + " (+" + obj.points + " pts)");
       }
     });
   }
@@ -414,7 +414,7 @@
       flagForm.classList.add("is-ok");
       flagInput.value = "••••••••••••••••••••";
       flagInput.disabled = true; flagSubmit.disabled = true;
-      flagMsg.textContent = "✓ flag validé"; flagMsg.className = "flag-msg ok";
+      flagMsg.textContent = "Flag validé"; flagMsg.className = "flag-msg ok";
       checkNewlyDone();
       renderObjectives();
       openSuccessModal();
@@ -497,6 +497,8 @@
   on(resetBtn, "click", () => { if (confirm("Recommencer depuis zéro ? La progression actuelle sera perdue.")) resetLab(); });
 
   // ------------------------------------------- init -------------------------------------------
+  clearBody();
+  printWelcome();
   refreshPrompt();
   renderObjectives();
 })();
