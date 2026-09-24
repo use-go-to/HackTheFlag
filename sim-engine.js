@@ -367,6 +367,11 @@
       return { err: "cat: " + target + ": Permission non accordée" };
     }
     this.event("read:" + h.id + ":" + abs);
+    // Un noeud peut déclarer node.finding = {label,value} (ou un tableau) :
+    // dès que ce fichier est lu, l'info apparaît comme pastille copiable en
+    // tête de terminal — la trouvaille grandit avec la progression au lieu
+    // d'être un simple texte qu'il faut retaper à la main plus tard.
+    if (node.finding) this.addFindings(Array.isArray(node.finding) ? node.finding : [node.finding]);
     return { abs: abs, node: node };
   };
   PentestSimEngine.prototype.cmd_cat = function (args) {
@@ -511,7 +516,12 @@
       out.push({ t: (p.port + "/tcp").padEnd(8) + "open  " + p.service.padEnd(8) + (sV ? p.version || "" : ""), c: "o" });
     });
     if (targetHost.osInfo) out.push({ t: "Service Info: " + targetHost.osInfo, c: "o" });
-    this.addFindings(targetHost.ports.map(function (p) { return { label: "port", value: p.port + "/tcp " + p.service }; }));
+    // Seuls les ports marqués p.finding:true dans les données du cours
+    // deviennent une pastille en tête de terminal (le port réellement utile
+    // à la chaîne d'exploitation) — le reste (services système, ports
+    // fermés/inutiles) reste visible dans la sortie brute du scan mais
+    // n'encombre pas la barre de trouvailles.
+    this.addFindings(targetHost.ports.filter(function (p) { return p.finding; }).map(function (p) { return { label: "port", value: p.port + "/tcp " + p.service }; }));
     return out;
   };
 
@@ -556,6 +566,10 @@
     if (!route) return { err: "<html><body><h1>404 Not Found</h1></body></html>", status: 404 };
     if (route.status === 403) return { err: "<html><body><h1>403 Forbidden</h1></body></html>", status: 403 };
     this.event("read:" + targetHost.id + ":web:" + path);
+    // Même mécanisme que pour les fichiers du VFS (cf. _readFile) : une route
+    // web peut déclarer route.finding pour transformer sa lecture en pastille
+    // copiable (identifiants trouvés dans une page exposée, par exemple).
+    if (route.finding) this.addFindings(Array.isArray(route.finding) ? route.finding : [route.finding]);
     return { content: route.content || "", host: targetHost, path: path };
   };
   PentestSimEngine.prototype.cmd_curl = function (args) {
